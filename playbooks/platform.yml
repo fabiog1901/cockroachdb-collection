@@ -3,7 +3,7 @@
   hosts: krb5_client, krb_client
   gather_facts: yes
   become: yes
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   tasks:
     - name: install MIT KDC client
       include_role:
@@ -17,7 +17,7 @@
   hosts: krb5_server, krb_server
   gather_facts: yes
   become: yes
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   tasks:
     - name: install MIT KDC server
       include_role:
@@ -30,7 +30,7 @@
   hosts: localhost
   gather_facts: no
   become: no
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   tasks:
     - include_role:
         name: certificates
@@ -42,7 +42,7 @@
   hosts: cockroachdb, crdb
   gather_facts: yes
   become: yes
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   serial: "{{ (cockroachdb_deployment == 'upgrade') | ternary(1, '100%') }}"
   tasks:
     - include_role:
@@ -56,7 +56,7 @@
   hosts: haproxy
   gather_facts: yes
   become: yes
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   tasks:
     - name: install HAProxy
       include_role:

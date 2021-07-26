@@ -1,4 +1,4 @@
-# Ansible Collection - cockroachlabs.cockroachdb
+# Ansible Collection - fabiog1901.cockroachdb
 
 Ansible Roles and Playbooks to spin up CockroachDB clusters for demos and workshops.
 
@@ -7,24 +7,24 @@ Ansible Roles and Playbooks to spin up CockroachDB clusters for demos and worksh
 Install the **Ansible CockroachDB Collection** at playbook level
 
 ```bash
-ansible-galaxy collection install git+https://github.com/cockroachlabs/ansible_collection.git -p collections/
+ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-ansible-collection.git -p collections/
 ```
 
 Install the required Ansible Collections:
 
 ```bash
-ansible-galaxy collection install -r collections/ansible_collections/cockroachlabs/cockroachdb/requirements.yml 
+ansible-galaxy collection install -r collections/ansible_collections/fabiog1901/cockroachdb/requirements.yml 
 ```
 
 Now, we copy the sample Playbooks in the **CockroachDB Collection** to our working directory
 
 ```bash
-cp collections/ansible_collections/cockroachlabs/cockroachdb/playbooks/site.yml .
-cp collections/ansible_collections/cockroachlabs/cockroachdb/playbooks/infrastructure.yml .
-cp collections/ansible_collections/cockroachlabs/cockroachdb/playbooks/platform.yml .  
-cp collections/ansible_collections/cockroachlabs/cockroachdb/playbooks/application.yml .     
+cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/site.yml .
+cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/infrastructure.yml .
+cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/platform.yml .  
+cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/application.yml .     
 mkdir config
-cp collections/ansible_collections/cockroachlabs/cockroachdb/config/sample.yml config   
+cp collections/ansible_collections/fabiog1901/cockroachdb/config/sample.yml config   
 ```
 
 Check file `application.yml` includes all required steps you want to run once the infrastructure and the platform (CockroachDB cluster, HAPRoxy, etc..) have been provisioned and deployed.
@@ -55,22 +55,9 @@ ansible-playbook site.yml -e @config/sample.yml
 
 ## Dependancies
 
-- binary `crl-lic` must be in the `PATH` if you don't provide license details.
 - You might need to install some pip packages, example `boto`, `botocore`, `boto3`...
 
-## Workshops
-
-Update file `config/workshops.yml` by setting the correct `deployment_id`, `count`, `owner`, and `cloud` and relative cloud details (region, vpc, subnet, etc..) as required.
-
-If you set `deployment_id` to `topology_patterns` or `query_optimization`, Ansible will create the dataset, check file `application.yml`.
-
-Run the playbook as always
-
-```bash
-ansible-playbook site.yml -e @config/workshops.yml  
-```
-
-`## Kerberos Login
+## Kerberos Login
 
 NORMAL USER  - VIA KERBEROS TICKET
 

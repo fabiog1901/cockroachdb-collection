@@ -35,7 +35,7 @@
   hosts: cockroachdb, crdb
   gather_facts: no
   become: yes
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   tasks:
     - name: Copy file with owner and permissions
       ansible.builtin.copy:
@@ -48,7 +48,7 @@
   hosts: app
   gather_facts: no
   become: yes
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   tasks:
     - name: Copy file with owner and permissions
       ansible.builtin.copy:
@@ -63,7 +63,6 @@
         dest: client.app1.crt
         mode: "0644"
       when: cockroachdb_krb
-
 
 - name: SET CLUSTER SETTINGS FOR COCKROACHDB
   hosts: cockroachdb
@@ -156,9 +155,21 @@
         cockroach sql \
           --host={{ cockroachdb_advertise_addr }} \
           {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
-          -e "SET CLUSTER SETTING cluster.organization = '{{ hostvars.localhost._org }}';"
-
+          -e "SET CLUSTER SETTING cluster.organization = '{{ hostvars.localhost._org }}';
+              SET CLUSTER SETTING enterprise.license = '{{ hostvars.localhost._lic }}';"
+   
+    - name: cockroachdb - create users 
+      shell: |
         cockroach sql \
           --host={{ cockroachdb_advertise_addr }} \
           {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
-          -e "SET CLUSTER SETTING enterprise.license = '{{ hostvars.localhost._lic }}';"
+          -e "CREATE USER {{ item.name }} WITH password = '{{ item.password }}';"        
+      loop: "{{ dbusers }}"
+
+    - name: cockroachdb - grant admin to users 
+      shell: |
+        cockroach sql \
+          --host={{ cockroachdb_advertise_addr }} \
+          {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
+          -e "GRANT admin TO {{ item.name }};"
+      loop: "{{ dbusers }}"

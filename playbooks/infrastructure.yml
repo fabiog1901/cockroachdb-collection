@@ -4,7 +4,7 @@
   connection: local
   gather_facts: no
   become: no
-  collections: cockroachlabs.cockroachdb
+  collections: fabiog1901.cockroachdb
   tasks:       
     - name: ensure presence of instances and Ansible inventory
       include_role:
