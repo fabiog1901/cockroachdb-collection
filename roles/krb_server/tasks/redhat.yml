@@ -1,0 +1,7 @@
+---
+- name: Install KRB5 server
+  yum:
+    name:
+      - krb5-libs
+      - krb5-server
+    state: installed

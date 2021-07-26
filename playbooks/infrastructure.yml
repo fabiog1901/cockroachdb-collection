@@ -1,0 +1,20 @@
+---
+- name: PROVISION HOSTS AND BUILD ANSIBLE HOSTS INVENTORY
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  become: no
+  collections: cockroachlabs.cockroachdb
+  tasks:       
+    - name: ensure presence of instances and Ansible inventory
+      include_role:
+        # accept var 'infra'
+        name: cloud_instance
+
+    - name: print Ansible inventory for reference
+      debug:
+        msg:
+          - "PRINT GROUPS MAGIC VARIABLE"
+          - "{{ groups }}"
+  tags:
+    - cloud_instance

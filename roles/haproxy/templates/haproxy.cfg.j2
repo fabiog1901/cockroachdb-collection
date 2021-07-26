@@ -1,0 +1,38 @@
+global
+  maxconn 4096
+
+defaults
+    mode                tcp
+    # Timeout values should be configured for your specific use.
+    # See: https://cbonte.github.io/haproxy-dconv/1.8/configuration.html#4-timeout%20connect
+    timeout connect     10s
+    timeout client      10m
+    timeout server      10m
+    # TCP keep-alive on client side. Server already enables them.
+    option              clitcpka
+
+listen psql
+    bind :{{ haproxy_port }}
+    mode tcp
+    balance roundrobin
+    option httpchk GET {{ haproxy_httpchk }}
+    
+    {% for host in haproxy_group %}
+    {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
+    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].public_ip }}:{{ haproxy_port }} check port {{ haproxy_checkport }}
+    {% endif %}
+    {% endfor %}
+
+listen http
+    bind :8080
+    mode tcp
+    balance roundrobin
+    option httpchk GET /health?ready=1
+
+    {% for host in haproxy_group %}
+    {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
+    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].public_ip }}:8080 check port {{ haproxy_checkport }}
+    {% endif %}
+    {% endfor %}
+
+    

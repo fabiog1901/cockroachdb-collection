@@ -1,0 +1,7 @@
+_certificates:
+  organization_name: Default Org
+  node_common_name: node
+  dir: certificates
+  usernames: 
+    - root
+  hosts: []

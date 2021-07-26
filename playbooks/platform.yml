@@ -1,0 +1,82 @@
+---   
+- name: INSTALL MIT KDC CLIENT
+  hosts: krb5_client, krb_client
+  gather_facts: yes
+  become: yes
+  collections: cockroachlabs.cockroachdb
+  tasks:
+    - name: install MIT KDC client
+      include_role:
+        name: krb_client
+      when: krb5_realm is defined
+  tags:
+    - mitkdc
+    - krb_client
+
+- name: INSTALL MIT KDC SERVER
+  hosts: krb5_server, krb_server
+  gather_facts: yes
+  become: yes
+  collections: cockroachlabs.cockroachdb
+  tasks:
+    - name: install MIT KDC server
+      include_role:
+        name: krb_server
+  tags:
+    - mitkdc
+    - krb_server
+
+- name: GENERATE COCKROACHDB CERTS
+  hosts: localhost
+  gather_facts: no
+  become: no
+  collections: cockroachlabs.cockroachdb
+  tasks:
+    - include_role:
+        name: certificates
+      when: cockroachdb_secure
+  tags:
+    - certificates
+
+- name: DEPLOY COCKROACHDB
+  hosts: cockroachdb, crdb
+  gather_facts: yes
+  become: yes
+  collections: cockroachlabs.cockroachdb
+  serial: "{{ (cockroachdb_deployment == 'upgrade') | ternary(1, '100%') }}"
+  tasks:
+    - include_role:
+        name: cockroachdb
+      vars:
+        cockroachdb_deployment_type: "{{ cockroachdb_deployment | default('standard') }}"
+  tags:
+    - cockroachdb
+
+- name: INSTALL COCKROACHDB-HAPROXY
+  hosts: haproxy
+  gather_facts: yes
+  become: yes
+  collections: cockroachlabs.cockroachdb
+  tasks:
+    - name: install HAProxy
+      include_role:
+        name: haproxy
+      vars:
+        haproxy_group: "{{ groups[cluster_name] | intersect(groups['cockroachdb']) }}"
+        haproxy_port: "{{ cockroachdb_port | default('26257') }}"
+        haproxy_checkport: "{{ cockroachdb_http_addr_port | default('8080') }}"
+        haproxy_serverprefix: cockroach
+        haproxy_httpchk: '/health?ready=1'
+
+    - include_role:
+        name: cockroachdb
+      vars:
+        cockroachdb_deployment_type: install only
+
+    - name: get the standalone workload binary
+      shell: |
+        wget https://edge-binaries.cockroachdb.com/cockroach/workload.LATEST -O workload; chmod 755 workload
+
+  tags:
+    - haproxy
+    

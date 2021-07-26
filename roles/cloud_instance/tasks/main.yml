@@ -1,0 +1,22 @@
+---
+- name: Loop through infra items
+  include_tasks: loop_infra_item_count.yml
+  loop: "{{ infra }}"
+  loop_control:
+    loop_var: _infra_item
+
+- name: pause 10 seconds
+  pause:
+    seconds: '10'
+
+# - name: put instances into Ansible inventory groups
+#   include_tasks: "{{ _cloud }}.groups.yml"
+#   loop: "{{ infra }}"
+#   loop_control:
+#     loop_var: _infra_item
+
+- name: groups Loop through infra items
+  include_tasks: loop_infra_item_count.groups.yml
+  loop: "{{ infra }}"
+  loop_control:
+    loop_var: _infra_item

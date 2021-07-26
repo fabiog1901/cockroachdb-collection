@@ -1,0 +1,29 @@
+[Unit]
+Description=Cockroach Database cluster node
+Requires=network.target
+[Service]
+Type=notify
+WorkingDirectory=/var/lib/cockroach
+Environment="KRB5_KTNAME=/var/lib/cockroach/cockroach.keytab"
+ExecStart=/usr/local/bin/cockroach start \
+    {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
+    {% for store in cockroachdb_store %}
+    --store={{ store }} \
+    {% endfor %}
+    --listen-addr={{ cockroachdb_listen_addr }}:26257 \
+    --advertise-addr={{ cockroachdb_advertise_addr }}:26257 \
+    --http-addr={{ cockroachdb_http_addr_ip }}:{{ cockroachdb_http_addr_port }} \
+    {% for join in cockroachdb_join %}
+    --join={{ join }} \
+    {% endfor %}
+    --locality={{ cockroachdb_locality }} \
+    --attrs={{ cockroachdb_attrs }}
+TimeoutStopSec=60
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=cockroach
+User=cockroach
+[Install]
+WantedBy=default.target

@@ -1,0 +1,19 @@
+---
+- name: INFRASTRUCTURE
+  import_playbook: infrastructure.yml
+
+- name: PLATFORM
+  import_playbook: platform.yml
+
+- name: APPLICATION
+  import_playbook: application.yml
+
+- name: print Ansible inventory for reference
+  hosts: localhost
+  gather_facts: no
+  become: no
+  tasks:
+    - name: PRINT GROUPS MAGIC VARIABLE
+      debug:
+        msg: 
+          - "{{ groups }}"

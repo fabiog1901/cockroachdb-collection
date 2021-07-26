@@ -1,0 +1,35 @@
+---
+- name: get list of current VMs via the count_tag
+  shell: |
+    az vm list \
+    --resource-group "{{ _grp.region | default(_infra_item.region) }}" \
+    --show-details \ 
+    --query "[?tags.count_tag=='{{ _count_tag }}']" \
+    --output json
+  register: _vms
+
+- name: Wait for SSH to come up
+  wait_for:
+    host: "{{ item.publicIps }}"
+    port: 22
+    timeout: 360
+    sleep: 5
+    state: started
+  loop: "{{ _vms.stdout | from_json |json_query('[*]') }}"
+
+- name: add instances to inventory groups
+  add_host:
+    name: "{{ item.publicIps }}"
+    groups: "{{ item.tags.ansible_inv_groups.split(';') + [item.tags.ansible_cluster_name] }}"
+    extra_vars: "{{ item.tags.ansible_extra_vars | from_json }}"
+    cluster_name: "{{ item.tags.ansible_cluster_name }}"
+    cloud_provider: azure
+    #ansible_private_key_file: '{{ _infra_item.private_key_path }}'
+    ansible_user: "{{ item.tags.ansible_user }}"
+    #
+    public_hostname: "{{ item.fqdns }}"
+    public_ip: "{{ item.publicIps }}"
+    private_hostname: "{{ item.privateIps }}"
+    private_ip: "{{ item.privateIps }}"
+
+  loop: "{{ _vms.stdout | from_json |json_query('[*]') }}"

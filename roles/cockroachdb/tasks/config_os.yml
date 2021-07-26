@@ -1,0 +1,173 @@
+---
+- name: pull cloud provider specific vars
+  include_vars: "{{ cloud }}.yml"
+
+- name: pull os family specific vars
+  include_vars: "{{ ansible_facts.os_family | lower }}.yml"
+
+- name: Run os_family specific tasks
+  include_tasks: "os_family/{{ ansible_facts.os_family | lower }}.yml"
+
+- name: Add the user cockroach
+  ansible.builtin.user:
+    name: cockroach
+    shell: /bin/bash
+
+- name: Create default CockroachDB directory
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+    recurse: yes
+    owner: cockroach
+    group: cockroach
+  loop:
+    - /var/lib/cockroach
+    - /mnt/cockroach
+
+- name: copy certs
+  when: cockroachdb_secure
+  block:
+    - name: Create certs directory if it does not exist
+      file:
+        path: /var/lib/cockroach/certs
+        state: directory
+        owner: cockroach
+        group: cockroach
+        mode: "0755"
+
+    - name: copy CA certificate
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/certs/ca.crt"
+        dest: /var/lib/cockroach/certs/ca.crt
+
+    - name: copy node certificate
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/certs/node.{{ inventory_hostname }}.crt"
+        dest: /var/lib/cockroach/certs/node.crt
+
+    - name: copy node key
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/certs/node.{{ inventory_hostname }}.key"
+        dest: /var/lib/cockroach/certs/node.key
+        owner: cockroach
+        group: cockroach
+        mode: "0400"
+
+    - name: copy client certificates crt
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/certs/client.{{ item }}.crt"
+        dest: /var/lib/cockroach/certs
+        mode: "0400"
+      loop: "{{ cockroachdb_certificates_clients }}"
+    
+    - name: copy client certificates key
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/certs/client.{{ item }}.key"
+        dest: /var/lib/cockroach/certs
+        mode: "0400"
+      loop: "{{ cockroachdb_certificates_clients }}"
+
+
+- name: install chrony
+  package:
+    name: "{{ ntp_package_name }}"
+    state: latest
+    
+- name: Add the preferred Chrony/NTP server
+  lineinfile:
+    path: "{{ ntp_conf }}"
+    line: "{{ ntp_server }}"
+
+- name: restart chronyd/ntp
+  service:
+    name: "{{ ntp_deamon }}"
+    state: restarted
+
+- name: increase file descriptor limit
+  shell: |
+    echo 150000 > /proc/sys/fs/file-max
+
+- name: Update VM swappiness
+  sysctl:
+    name: vm.swappiness
+    value: "0"
+    state: present
+    reload: yes
+
+- name: Set timezone to UTC
+  timezone:
+    name: UTC
+
+- name: find attached disks 
+  shell: |
+    lsblk -o NAME,TYPE,SIZE -p -n -b -s | \
+      awk '$NF ~ /[1-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/' | \
+      grep -v '└─' | \
+      grep disk | \
+      awk '{print $1}'
+  args:
+    executable: /bin/bash
+  register: _disks
+
+- when: _disks.stdout_lines | length > 0
+  block:
+    - name: Create a ext4 filesystem
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ item }}"
+      loop: "{{ _disks.stdout_lines }}"
+
+    - name: Create default CockroachDB directory
+      file:
+        path: "/mnt/cockroach{{ idx }}"
+        state: directory
+        mode: "0755"
+        recurse: yes
+        owner: cockroach
+        group: cockroach
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+
+    - name: mount the disks
+      ansible.posix.mount:
+        path: "/mnt/cockroach{{ idx }}"
+        src: "{{ item }}"
+        fstype: ext4
+        state: mounted
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+
+    - name: Reset permissions on mounted directory /mnt/cockroach
+      file:
+        path: '/mnt/cockroach{{ idx }}'
+        state: directory
+        mode: "0755"
+        owner: cockroach
+        group: cockroach
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+    
+    - name: reset cockroachdb_store
+      set_fact:
+        cockroachdb_store: []
+
+    - name: set cockroachdb_store
+      set_fact:
+        cockroachdb_store: "{{ cockroachdb_store + ['/mnt/cockroach' + idx|string] }}"
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+    
+- name: copy systemd template cockroachdb.service
+  template:
+    src: cockroachdb.service.j2
+    dest: /etc/systemd/system/cockroachdb.service
+    mode: 0644
+    owner: root
+    group: root
+    backup: yes
+    force: yes

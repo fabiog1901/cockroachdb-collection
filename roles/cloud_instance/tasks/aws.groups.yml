@@ -1,0 +1,42 @@
+---
+# bacause exact_count and count_tag is used
+# the ec2 module might also delete instances.
+# If it deletes an instance, the registered variable will hold the info
+# of the terminated instances and wait_for will fail.
+# Therefore, at the cost of being slow, let module ec2 create/delete instances
+# and have ec2_instance_info gather the details of the current instances.
+- name: pull info re ec2 instances
+  community.aws.ec2_instance_info:
+    region: "{{ _grp.region | default(_infra_item.region) }}"
+    filters:
+      "tag:deployment_id": "{{ deployment_id }}"
+      "tag:cluster_name": "{{ _infra_item.cluster_name | default(_cluster_name) }}"
+      instance-state-name:
+        - running
+  register: _ec2
+
+- name: Wait for SSH to come up
+  wait_for:
+    host: "{{ item.public_ip_address }}"
+    port: 22
+    timeout: 180
+    sleep: 5
+    state: started
+  loop: "{{ _ec2.instances }}"
+
+- name: add instances to inventory groups
+  add_host:
+    name: "{{ item.public_ip_address }}"
+    groups: "{{ item.tags.ansible_inv_groups | from_json + [item.tags.ansible_cluster_name] }}"
+    cluster_name: "{{ item.tags.ansible_cluster_name }}"
+    cloud: aws
+    region: "{{ item.tags.region }}"
+    zone: "{{ item.tags.zone }}"
+    ansible_user: "{{ item.tags.ansible_user }}"
+    extra_vars: "{{ item.tags.extra_vars | from_json }}"
+    
+    public_hostname: "{{ item.public_dns_name }}"
+    public_ip: "{{ item.public_ip_address }}"
+    private_hostname: "{{ item.private_dns_name }}"
+    private_ip: "{{ item.private_ip_address }}"
+  loop: "{{ _ec2.instances }}"

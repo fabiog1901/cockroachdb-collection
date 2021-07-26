@@ -1,0 +1,23 @@
+---
+cockroachdb_deployment_type: standard
+cockroachdb_version: latest
+cockroachdb_secure: no
+cockroachdb_certificates_dir: 'certs'
+cockroachdb_port: 26257
+cockroachdb_http_addr_ip: '0.0.0.0'
+cockroachdb_http_addr_port: 8080
+cockroachdb_store: 
+  - /mnt/cockroach
+cockroachdb_secure_flag: --certs-dir=/var/lib/cockroach/certs
+cockroachdb_insecure_flag: --insecure
+cockroachdb_repo_url: https://binaries.cockroachdb.com
+cockroachdb_bin_prefix: cockroach-
+# these vars must be passed
+cockroachdb_join: []
+# the location of the value for these vars 
+# is expected to be in the hostvars Ansible Inventory
+cockroachdb_locality: ''
+cockroachdb_advertise_addr: ''
+cockroachdb_listen_addr: '0.0.0.0'
+cockroachdb_attrs: 'std'
+

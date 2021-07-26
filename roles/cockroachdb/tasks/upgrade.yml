@@ -1,0 +1,27 @@
+---
+- name: get current cockroachdb binary version
+  shell: |
+    cockroach version | head -n1 | awk '{print $3}'
+  register: _version
+
+# TODO get API to find out what 'latest' version is exactly
+- when: _version.stdout != cockroachdb_version
+  block:
+    - name: Populate service facts
+      ansible.builtin.service_facts:
+
+    - name: Print service facts
+      ansible.builtin.debug:
+        var: ansible_facts.services['cockroachdb.service'].state
+
+    - name: drain the node
+      shell: |
+        cockroach node drain \
+        {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
+        --host={{ cockroachdb_listen_addr }}
+      when: ansible_facts.services['cockroachdb.service'].state == 'running'
+
+    - name: stop cockroachdb service
+      service:
+        name: cockroachdb
+        state: stopped

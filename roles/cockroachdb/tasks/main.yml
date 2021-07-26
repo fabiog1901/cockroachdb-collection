@@ -1,0 +1,19 @@
+---
+- name: Upgrade CockroachDB
+  when: cockroachdb_deployment_type == 'upgrade'
+  include_tasks: upgrade.yml
+
+- name: install CockroachDB binary
+  import_tasks: install.yml
+
+- name: Configure OS for CockroachDB
+  include_tasks: config_os.yml
+  when: cockroachdb_deployment_type not in ('install only', 'upgrade')
+
+- name: Deploy CockroachDB
+  include_tasks: "{{ cockroachdb_deployment_type | lower }}.yml"
+  when: cockroachdb_deployment_type not in ('install only', 'upgrade')
+  
+- name: Restart after Upgrade
+  include_tasks: standard.yml
+  when: cockroachdb_deployment_type == 'upgrade'

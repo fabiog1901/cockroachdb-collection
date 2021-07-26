@@ -1,0 +1,50 @@
+---
+- name: Check that tarball exists
+  stat:
+    path: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-amd64.tgz
+  register: _stat_result
+
+# TODO: don't assume the architecture is 'linux-amd64'
+# TODO: build targz bin file path
+# TODO: try avoiding umarchiving tarball if already done
+- name: get cockroach binary
+  get_url:
+    url: '{{ cockroachdb_repo_url }}/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-amd64.tgz'
+    dest: /root
+  when: not _stat_result.stat.exists
+
+- name: untar the tar.gz
+  unarchive:
+    src: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-amd64.tgz
+    dest: /root
+    remote_src: yes
+
+- name: Find unarchived cockroachdb directory
+  find:
+    paths: 
+      - "/root"
+    patterns: "{{ cockroachdb_bin_prefix }}*.linux-amd64"
+    recurse: no
+    file_type: directory
+  register: dirs
+
+- name: copy binary to bin dir
+  copy:
+    src: "{{ dirs.files[0].path }}/cockroach"
+    dest: /usr/local/bin/
+    remote_src: yes
+    mode: "0755"
+
+- name: copy GIS libs to right location
+  copy:
+    src: "{{ dirs.files[0].path }}/lib/{{ item }}"
+    dest: /usr/local/lib/cockroach/
+    remote_src: yes
+  loop:
+    - libgeos.so
+    - libgeos_c.so
+
+- name: Recursively remove directory
+  ansible.builtin.file:
+    path: "{{ dirs.files[0].path }}"
+    state: absent

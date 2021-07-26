@@ -1,0 +1,24 @@
+---
+- name: pull os family specific vars
+  include_vars: "{{ ansible_facts.os_family | lower }}.yml"
+  
+- name: Run os_family specific tasks
+  include_tasks: "{{ ansible_facts.os_family | lower }}.yml"
+
+- name: copy haproxy.cfg
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: 0644
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    backup: yes
+    force: yes
+
+- name: Start haproxy
+  service:
+    name: "{{ item }}"
+    state: restarted
+    enabled: yes
+  loop: "{{ haproxy_daemons }}"
+  

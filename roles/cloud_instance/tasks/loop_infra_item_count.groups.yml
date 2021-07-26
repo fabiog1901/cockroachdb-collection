@@ -1,0 +1,6 @@
+---
+- name: Loop through _infra_item.count
+  include_tasks: loop_instance_groups.groups.yml
+  loop: "{{ range(_infra_item.count | default(_count|int)) | list }}"
+  loop_control:
+    index_var: _idx

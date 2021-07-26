@@ -1,0 +1,7 @@
+---
+- name: install krb5
+  apt:
+    name:
+      - krb5-user
+    state: present
+    update_cache: yes

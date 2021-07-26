@@ -1,0 +1,14 @@
+---
+- name: Run os_family specific tasks
+  include_tasks: "{{ ansible_facts.os_family | lower }}.yml"
+
+- name: copy krb5.conf
+  template:
+    src: krb5.conf.j2
+    dest: /etc/krb5.conf
+    mode: 0644
+    owner: root
+    group: root
+    backup: yes
+    force: yes
+

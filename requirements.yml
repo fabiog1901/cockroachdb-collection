@@ -1,0 +1,11 @@
+collections:
+  - name: community.docker
+  - name: amazon.aws
+  - name: community.aws
+  - name: ansible.posix
+  - name: community.general
+
+#  - name: https://github.com/cockroachlabs/ansible_deployment.git#/cockroachlabs/cockroachdb
+#    type: git
+#    version: main
+
