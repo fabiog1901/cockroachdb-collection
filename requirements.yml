@@ -4,3 +4,4 @@ collections:
   - name: community.aws
   - name: ansible.posix
   - name: community.general
+  - name: google.cloud
