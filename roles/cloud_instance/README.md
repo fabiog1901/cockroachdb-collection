@@ -4,15 +4,10 @@ Ansible roles for automating the deployment of VMs on the cloud.
 
 You define a list variable `infra` where each item is the definition of a _cluster_, where a cluster can be made up of just 1 VM instance. You can also specify the count of how many such clusters you want to create.
 
-## TO-DO
-
-- Doesn't work for AZURE, only GCP and AWS.
-
 ## Requirements
 
 - Ansible v2.9
-- openstacksdk
-- boto, boto3, botocore
+- boto, boto3, botocore, google-auth
 
 ## Role Variables
 
@@ -66,154 +61,37 @@ Check file `defaults/main.yml` for the list of all pre-configured instances.
   become: no
   vars:
     infra:
-      - cloud: openstack # aws, azure, gcp, openstack
-        count: 5
-        cluster_name: SRM
-
-        region: "{{ region }}" #RegionOne
-        vpc_id: "{{ vpc_id }}" # az for openstack, VNet for azure #SE-GOES
-        subnet: "{{ subnet }}"
-        security_group: "{{ security_group }}" #default
-        public_key_id: "{{ public_key }}"
-
-        # image can be a specific cloud provider image name, or use a default
-        image: default_centos7
-        public_ip: yes
-        # if using a default image, no need to specify user
-        #  user: centos
-
-        bootstrap:
-          openstack: |
-            #!/bin/bash
-            hostnamectl set-hostname $(echo "`hostname | cut -d"." -f1`.{{ domain|default('') }}")
-          aws: ""
-
-        tags:
-          owner: "{{ owner }}"
-          enddate: "{{ enddate }}"
-          project: "{{ project_name }}"
-          deployment_id: "{{ deployment_id }}"
-          deploy_tool: Foundry
-
-        instance_groups:
-          - inventory_groups:
-              - main_master
-              - db_server
-              - cm_server
-              - krb5_server
-              - cdp_servers
-            extra_vars:
-              key_str: Hello you!
-              key_int: 123
-              key_bool: no
-            exact_count: 1
-            # enter a specific type if desired..
-            # instance_type: m5.large
-            # .. or use a default one for every cloud provider
-            instance:
-              gpu: 0
-              cpu: 2
-              mem: 8
-            # volume types are [standard|premium]_[ssd|hdd]
-            # defaults to standard_ssd
-            volumes:
-              - name: /dev/sda1
-                type: standard_ssd
-                size: 20
-                delete_on_termination: true
-            tags:
-              Name: m
-
-          - inventory_groups:
-              - cdf
-              - cdp_servers
-              - workers
-            extra_vars: {}
-            exact_count: 2
-            instance:
-              cpu: 2
-              mem: high_mem
-            volumes:
-              - name: /dev/sda1
-                size: 20
-                delete_on_termination: true
-            tags:
-              Name: w
-
-
       - cloud: aws
-        # count: # default to 1
-        # cluster_name: # defaults to 'cluster'
-
-        region: "{{ region }}" #RegionOne
-        vpc_id: "{{ vpc_id }}" #SE-GOES
-        subnet: "{{ subnet }}"
-        security_group: "{{ security_group }}" #default
-        public_key_id: "{{ public_key }}"
-
+        count: 1 # default to 1
+        cluster_name: demo # defaults to 'cluster'
+        region: us-east1
+        vpc_id: vpc-123
+        subnet: subnet-456
+        security_group: sg-987
+        public_key_id: workshop
         image: default_centos7
         public_ip: yes
         bootstrap:
-          openstack: |
+          aws: |
             #!/bin/bash
-            hostnamectl set-hostname $(echo "`hostname | cut -d"." -f1`.{{ domain }}")
+            touch hello-aws
         tags:
-          owner: "{{ owner }}"
-          enddate: "{{ enddate }}"
-          project: "{{ project_name }}"
-          deployment_id: "{{ deployment_id }}"
-          deploy_tool: Foundry
+          owner: fabio
+          deployment_id: demo1
 
         instance_groups:
           - inventory_groups:
-              - freeipa
+              - appservers
             extra_vars: {}
             exact_count: 1
             instance:
               cpu: 4
             volumes:
-              - name: /dev/sda1
-                type: standard_ssd
+              - type: standard_ssd
                 size: 100
                 delete_on_termination: true
             tags:
               Name: freeipa
-  
-      - cloud: aws
-
-        region: us-east-1
-        vpc_id: vpc-0912105d299a627bf
-        subnet: subnet-0fc93769293dc88b8
-        security_group: sg-0fe755db5fc1b6120
-        public_key_id: public_key  
-
-        image: ami-02eac2c0129f6376b # CentOS-7 x86_64
-        user: centos
-        public_ip: yes
-
-        bootstrap:
-          aws: ""
-        tags:
-          owner: "{{ owner }}"
-          enddate: "{{ enddate }}"
-          project: "{{ project_name }}"
-          deployment_id: "{{ deployment_id }}"
-          deploy_tool: Foundry
-
-        instance_groups:
-          - inventory_groups:
-              - webserver
-            extra_vars: {}
-            exact_count: 1
-            instance_type: t2.micro
-            volumes:
-              - name: /dev/sda1
-                type: standard_ssd
-                size: 20
-                delete_on_termination: true
-            tags:
-              Name: webserver
-
 
   tasks:
     - name: ensure presence of instances and Ansible inventory
@@ -221,9 +99,9 @@ Check file `defaults/main.yml` for the list of all pre-configured instances.
         name: cloud_instance
 
 - name: FIND RELATIVE CLUSTER MASTER HOST
-  hosts: worker
+  hosts: appservers
   gather_facts: yes
   tasks:
     - debug:
-        msg: "{{ hostvars[(groups[cluster_name] | intersect(groups['main_master']))[0]].public_hostname }}"
+        msg: "{{ hostvars[(groups[cluster_name] | intersect(groups['master']))[0]].public_hostname }}"
 ```

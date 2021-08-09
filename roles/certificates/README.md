@@ -13,7 +13,7 @@ Ansible role to create certificates and keys for a set of hosts and users.
 ## Example Playbook
 
 ```yml
-- name: generate cockroachdb certs
+- name: generate certs
   hosts: localhost
   gather_facts: no
   become: no
@@ -26,5 +26,5 @@ Ansible role to create certificates and keys for a set of hosts and users.
           dir: certificates
           usernames:
             - root
-          hosts: "{{ groups['cockroachdb'] }}"
+          hosts: "{{ groups['my-inventory-group'] }}"
 ```

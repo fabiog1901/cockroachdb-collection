@@ -55,7 +55,7 @@ ansible-playbook site.yml -e @config/sample.yml
 
 ## Dependancies
 
-- You might need to install some pip packages, example `boto`, `botocore`, `boto3`...
+- You might need to install some pip packages, example `boto`, `botocore`, `boto3`, `google-auth`, ...
 
 ## Kerberos Login
 

@@ -21,7 +21,7 @@
     - name: add principals for the database users
       shell: |
         kadmin.local addprinc -pw {{ item.password }} {{ item.name }}@{{ krb5_realm }}
-      loop: "{{ dbusers }}"
+      loop: "{{ krb5_principals }}"
       register: result
       failed_when: result.rc != 0 and 'Principal or policy already exists while creating' not in result.stderr
 
@@ -52,15 +52,15 @@
   tasks:
     - name: Copy file with owner and permissions
       ansible.builtin.copy:
-        src: certs/client.app1.key
-        dest: client.app1.key
+        src: certs/certs/client.app1.key
+        dest: client.app.key
         mode: "0600"
       when: cockroachdb_krb
     
     - name: Copy file with owner and permissions
       ansible.builtin.copy:
-        src: certs/client.app1.crt
-        dest: client.app1.crt
+        src: certs/certs/client.app1.crt
+        dest: client.app.crt
         mode: "0644"
       when: cockroachdb_krb
 
@@ -155,16 +155,18 @@
         cockroach sql \
           --host={{ cockroachdb_advertise_addr }} \
           {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
-          -e "SET CLUSTER SETTING cluster.organization = '{{ hostvars.localhost._org }}';
-              SET CLUSTER SETTING enterprise.license = '{{ hostvars.localhost._lic }}';"
+          -e "SET CLUSTER SETTING cluster.organization = '{{ cockroachdb_cluster_organization }}';
+              SET CLUSTER SETTING enterprise.license = '{{ cockroachdb_enterprise_license }}';"
    
     - name: cockroachdb - create users 
       shell: |
         cockroach sql \
           --host={{ cockroachdb_advertise_addr }} \
           {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
-          -e "CREATE USER {{ item.name }} WITH password = '{{ item.password }}';"        
+          -e "CREATE USER {{ item.name }} WITH password {{ (item.password == None )| ternary('NULL' , '\"' + item.password|string + '\"') }};"        
       loop: "{{ dbusers }}"
+      failed_when: result.rc != 0 and 'already exists' not in result.stderr
+      register: result
 
     - name: cockroachdb - grant admin to users 
       shell: |
@@ -173,3 +175,4 @@
           {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
           -e "GRANT admin TO {{ item.name }};"
       loop: "{{ dbusers }}"
+      

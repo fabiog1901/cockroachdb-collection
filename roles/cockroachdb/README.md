@@ -15,9 +15,9 @@ cockroachdb_krb: no
 cockroachdb_certificates_dir: certs
 cockroachdb_version: v20.2.4
 cockroachdb_join: 
-  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].private_hostname }}"
-  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].private_hostname }}"
-  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].private_hostname }}"
+  - host1
+  - host2
+  - host3
 cockroachdb_port: 26257
 cockroachdb_http_addr_ip: "0.0.0.0"
 cockroachdb_http_addr_port: "8080"
@@ -44,7 +44,7 @@ zone: b
 private_hostname: ip-10-0-5-222.ec2.internal
 private_ip: 10.0.5.222
 public_hostname: ec2-18-206-87-123.compute-1.amazonaws.com
-advertise_addr: 18.206.87.123
+public_ip: 18.206.87.123
 ```
 
 ## Dependencies
@@ -64,7 +64,7 @@ all:
       private_hostname: ip-10-0-5-222.ec2.internal
       private_ip: 10.0.5.222
       public_hostname: ec2-18-206-87-123.compute-1.amazonaws.com
-      advertise_addr: 18.206.87.123
+      public_ip: 18.206.87.123
       cloud: aws
       region: us-east1
       zone: a
@@ -73,7 +73,7 @@ all:
       private_hostname: ip-10-0-5-230.ec2.internal
       private_ip: 10.0.5.230
       public_hostname: ec2-3-221-163-147.compute-1.amazonaws.com
-      advertise_addr: 3.221.163.147
+      public_ip: 3.221.163.147
       cloud: aws
       region: us-east1
       zone: b
@@ -82,7 +82,7 @@ all:
       private_hostname: ip-10-0-5-52.ec2.internal
       private_ip: 10.0.5.52
       public_hostname: ec2-3-234-141-100.compute-1.amazonaws.com
-      advertise_addr: 3.234.141.100
+      public_ip: 3.234.141.100
       cloud: aws
       region: us-east1
       zone: c
@@ -115,14 +115,21 @@ Below Play will install and start CockroachDB on the cluster.
         cockroachdb_deployment_type: standard
         cockroachdb_version: latest
         cockroachdb_secure: no
+        cockroachdb_krb: no
+        cockroachdb_krbsrvname: cockroach
+        cockroachdb_certificates_dir: certs
+        cockroachdb_certificates_clients: 
+          - root
         cockroachdb_port: 26257
         cockroachdb_http_addr_ip: '0.0.0.0'
         cockroachdb_http_addr_port: 8080
         cockroachdb_join: 
-          - host1
-          - host2
-          - host3
+          - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].private_hostname }}"
+          - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].private_hostname }}"
+          - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].private_hostname }}"
         cockroachdb_locality: "region={{ region }},zone={{ zone }}"
         cockroachdb_advertise_addr: "{{ private_hostname }}"
-        cockroachdb_listen_addr: "{{ private_hostname }}"
+        # cockroachdb_listen_addr: "{{ private_hostname }}"
+        cockroachdb_cluster_organization: my-org-name
+        cockroachdb_enterprise_license: crl-0-xxxxxyyyyyzzzzz
 ```

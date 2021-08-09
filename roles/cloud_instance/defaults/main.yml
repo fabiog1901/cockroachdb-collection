@@ -3,61 +3,6 @@ _cluster_name: cluster
 _count: 1
 _default_user: user
 
-images:
-  aws:
-    default_centos7:
-      id: ami-02eac2c0129f6376b
-      user: centos
-    default_centos8:
-      id: ami-056b03dba13a2c9dd
-      user: centos
-    default_rhel8:
-      id: ami-098f16afa9edf40be
-      user: ec2-user
-    default_ubuntu:
-      id: ami-0885b1f6bd170450c
-      user: ubuntu
-    default_debian:
-      id: debian-10-arm64-20200511-260
-      user: admin
-    default_sles:
-      id: ami-0068cd63259e9f24c
-      user: ec2-user
-
-  azure:
-    default_centos7:
-      id: "CentOS"
-      user: centos
-    default_centos8:
-      id: ""
-      user: centos
-    default_ubuntu:
-      id: ""
-      user: ubuntu
-    default_debian:
-      id: ""
-      user: debian
-    default_sles:
-      id: ""
-      user: ""
-
-  gcp:
-    default_centos7:
-      id: projects/centos-cloud/global/images/centos-7-v20200714
-      user: ""
-    default_centos8:
-      id: projects/centos-cloud/global/images/centos-8-v20200714
-      user: ""
-    default_ubuntu:
-      id: projects/ubuntu-os-cloud/global/images/ubuntu-1804-bionic-v20200716
-      user: ""
-    default_debian:
-      id: projects/debian-cloud/global/images/debian-10-buster-v20200714
-      user: ""
-    default_sles:
-      id: projects/suse-cloud/global/images/sles-12-sp5-v20200610
-      user: ""
-
 instances:
   aws:
     # GPUs
