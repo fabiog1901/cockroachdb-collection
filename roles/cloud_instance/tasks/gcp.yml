@@ -20,7 +20,7 @@
       cluster_name: "{{ _infra_item.cluster_name | default(_cluster_name) }}"
       region: "{{ _infra_item.region | default(_grp.region) | default('') }}"
       zone: "{{ _infra_item.zone | default(_grp.zone) | default('') }}"
-      ansible_user: "{{ (_image not in (images[_cloud])) | ternary(_user, images[_cloud][_image].user ) }}"
+      ansible_user: "{{ _user }}"
 
 - name: combine all tags
   ansible.builtin.set_fact:
@@ -60,7 +60,7 @@
           # disk_name: "{{ _grp.volumes.os.name | default(_infra_item.volumes.os.name) | default(volume_type[_cloud].name) }}"
           disk_size_gb: "{{ _grp.volumes.os.size | default(_infra_item.volumes.os.size) | default(volume_type[_cloud].size) }}"
           disk_type: "{{ volume_type[_cloud][_grp.volumes.os.type | default(_infra_item.volumes.os.type) | default(volume_type[_cloud].type)] }}"
-          source_image: "{{ (_image not in images[_cloud]) | ternary(_image, images[_cloud][_image].id ) }}"
+          source_image: "{{ _image }}"
         
 - name: create volumes fact
   ansible.builtin.set_fact:

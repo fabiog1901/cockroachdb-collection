@@ -21,7 +21,7 @@
       cluster_name: "{{ _infra_item.cluster_name | default(_cluster_name) }}"
       region: "{{ _infra_item.region | default(_grp.region) | default('') }}"
       zone: "{{ _infra_item.zone | default(_grp.zone) | default('') }}"
-      ansible_user: "{{ (_image not in (images[_cloud])) | ternary(_user, images[_cloud][_image].user ) }}"
+      ansible_user: "{{ _user }}"
       ansible_count_tag: "{{ deployment_id }}-{{ _cl_name }}-{{ _type }}"
 
 - name: combine all tags
@@ -61,7 +61,7 @@
     region: "{{ _grp.region | default(_infra_item.region) }}"
     group_id: "{{ _grp.security_group | default(_infra_item.security_group) }}"
     instance_type: "{{ (_instance_type != '') | ternary(_instance_type, instances[_cloud][_instance.gpu|default(0)|int][_instance.cpu|default(0)|int][_instance.mem|default(0)|int] ) }}"
-    image: "{{ (_image not in images[_cloud]) | ternary(_image, images[_cloud][_image].id ) }}"
+    image: "{{ _image }}"
     key_name: "{{ _grp.public_key_id | default(_infra_item.public_key_id) }}"
     exact_count: "{{ _grp.exact_count | default(_infra_item.exact_count) }}"
     count_tag:
