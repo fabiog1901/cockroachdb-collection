@@ -20,13 +20,13 @@
 - name: add instances to inventory groups
   add_host:
     name: "{{ item.networkInterfaces[0].accessConfigs[0].natIP }}"
-    groups: "{{ (_vms.resources[0].metadata['items'] | items2dict).ansible_inv_groups  | from_json + [(_vms.resources[0].metadata['items'] | items2dict).ansible_cluster_name]  }}"
-    cluster_name: "{{ (_vms.resources[0].metadata['items'] | items2dict).ansible_cluster_name }}"
+    groups: "{{ (item.metadata['items'] | items2dict).ansible_inv_groups  | from_json + [(item.metadata['items'] | items2dict).ansible_cluster_name]  }}"
+    cluster_name: "{{ (item.metadata['items'] | items2dict).ansible_cluster_name }}"
     cloud: gcp
-    region: "{{ (_vms.resources[0].metadata['items'] | items2dict).region }}"
-    zone: "{{ (_vms.resources[0].metadata['items'] | items2dict).zone }}"
-    ansible_user: "{{ (_vms.resources[0].metadata['items'] | items2dict).ansible_user }}"
-    extra_vars: "{{ (_vms.resources[0].metadata['items'] | items2dict).extra_vars  | from_json }}"
+    region: "{{ (item.metadata['items'] | items2dict).region }}"
+    zone: "{{ (item.metadata['items'] | items2dict).zone }}"
+    ansible_user: "{{ (item.metadata['items'] | items2dict).ansible_user }}"
+    extra_vars: "{{ (item.metadata['items'] | items2dict).extra_vars  | from_json }}"
     
     public_hostname: "{{ item.networkInterfaces[0].accessConfigs[0].natIP.split('.')[3] }}.{{ item.networkInterfaces[0].accessConfigs[0].natIP.split('.')[2] }}.{{ item.networkInterfaces[0].accessConfigs[0].natIP.split('.')[1] }}.{{ item.networkInterfaces[0].accessConfigs[0].natIP.split('.')[0] }}.bc.googleusercontent.com"
     public_ip: "{{ item.networkInterfaces[0].accessConfigs[0].natIP }}"
