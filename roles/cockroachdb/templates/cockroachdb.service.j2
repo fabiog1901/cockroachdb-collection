@@ -18,7 +18,8 @@ ExecStart=/usr/local/bin/cockroach start \
     {% endfor %}
     --locality={{ cockroachdb_locality }} \
     --attrs={{ cockroachdb_attrs }}
-TimeoutStopSec=60
+TimeoutStopSec=300
+LimitNOFILE=65000
 Restart=always
 RestartSec=10
 StandardOutput=syslog

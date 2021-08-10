@@ -84,10 +84,6 @@
     name: "{{ ntp_deamon }}"
     state: restarted
 
-- name: increase file descriptor limit
-  shell: |
-    echo 150000 > /proc/sys/fs/file-max
-
 - name: Update VM swappiness
   sysctl:
     name: vm.swappiness
