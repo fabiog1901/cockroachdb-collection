@@ -82,11 +82,8 @@ sudo cockroach sql --certs-dir=/var/lib/cockroach/certs
 sudo cockroach sql --url "postgresql://root@`hostname -f`:26257/defaultdb?sslmode=require&sslrootcert=/var/lib/cockroach/certs/ca.crt&sslcert=/var/lib/cockroach/certs/client.root.crt&sslkey=/var/lib/cockroach/certs/client.root.key" 
 ```
 
-Log in as `app1`, bypassing Kerberos
+Log in as `app`, bypassing Kerberos
 
 ```bash
-sudo cockroach sql --url "postgresql://app1@<haproxy-hostname>:26257/defaultdb?sslmode=require&sslrootcert=/var/lib/cockroach/certs/ca.crt&sslcert=/var/lib/cockroach/certs/client.app1.crt&sslkey=/var/lib/cockroach/certs/client.app1.key"
-
-# or if you have 
-sudo cockroach sql --url "postgresql://app1@<haproxy-hostname>:26257/defaultdb?sslmode=require&sslrootcert=ca.crt&sslcert=client.app1.crt&sslkey=client.app1.key" 
+sudo cockroach sql --url "postgresql://app@<haproxy-hostname>:26257/defaultdb?sslmode=require&sslrootcert=ca.crt&sslcert=client.app.crt&sslkey=client.app.key" 
 ```

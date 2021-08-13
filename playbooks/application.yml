@@ -60,7 +60,9 @@
         ansible.builtin.copy:
           src: certs/certs/client.app.key
           dest: client.app.key
-          mode: "0600"
+          mode: "0400"
+          owner: "{{ ansible_user }}"
+          group: "{{ ansible_user }}"
         when: cockroachdb_krb
       
       - name: Copy file with owner and permissions
@@ -68,6 +70,8 @@
           src: certs/certs/client.app.crt
           dest: client.app.crt
           mode: "0644"
+          owner: "{{ ansible_user }}"
+          group: "{{ ansible_user }}"
         when: cockroachdb_krb
   
   - name: SET CLUSTER SETTINGS FOR COCKROACHDB
