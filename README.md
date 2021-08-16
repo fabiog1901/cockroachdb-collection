@@ -7,7 +7,7 @@ Ansible Roles and Playbooks to spin up CockroachDB clusters for demos and worksh
 Install the **Ansible CockroachDB Collection** at playbook level
 
 ```bash
-ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-ansible-collection.git -p collections/
+ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-collection.git -p collections/
 ```
 
 Install the required Ansible Collections:
@@ -19,10 +19,7 @@ ansible-galaxy collection install -r collections/ansible_collections/fabiog1901/
 Now, we copy the sample Playbooks in the **CockroachDB Collection** to our working directory
 
 ```bash
-cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/site.yml .
-cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/infrastructure.yml .
-cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/platform.yml .  
-cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/application.yml .     
+cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/* .
 mkdir config
 cp collections/ansible_collections/fabiog1901/cockroachdb/config/sample.yml config   
 ```
