@@ -56,25 +56,19 @@
         vars:
           cockroachdb_deployment_type: install only
           
-      - name: Copy client key
+      - name: Copy file with owner and permissions
         ansible.builtin.copy:
-          src: "certs/certs/client.{{ item.name }}.key"
-          dest: "client.{{ item.name }}.key"
-          mode: "0400"
-          owner: "{{ ansible_user }}"
-          group: "{{ ansible_user }}"
-        when: cockroachdb_krb and item.is_cert
-        loop: "{{ dbusers }}"
+          src: certs/certs/client.app.key
+          dest: client.app.key
+          mode: "0600"
+        when: cockroachdb_krb
       
-      - name: Copy client cert
+      - name: Copy file with owner and permissions
         ansible.builtin.copy:
-          src: certs/certs/client.{{ item.name }}.crt
-          dest: "client.{{ item.name }}.crt"
+          src: certs/certs/client.app.crt
+          dest: client.app.crt
           mode: "0644"
-          owner: "{{ ansible_user }}"
-          group: "{{ ansible_user }}"
-        when: cockroachdb_krb and item.is_cert
-        loop: "{{ dbusers }}"
+        when: cockroachdb_krb
   
   - name: SET CLUSTER SETTINGS FOR COCKROACHDB
     hosts: cockroachdb
@@ -89,6 +83,7 @@
             --host={{ cockroachdb_advertise_addr }} \
             -e "SET cluster setting server.host_based_authentication.configuration = 'host all app all cert-password
             host all all all gss include_realm=0';"
+            # -e "SET cluster setting server.host_based_authentication.configuration = 'host all all all gss include_realm=0';"
         when: cockroachdb_krb
         
       - name: cockroachdb - add locations
@@ -191,5 +186,4 @@
             {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
             -e "GRANT admin TO {{ item.name }};"
         loop: "{{ dbusers }}"
-        when: item.is_admin
         

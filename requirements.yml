@@ -1,5 +1,4 @@
 collections:
-  - name: community.docker
   - name: amazon.aws
   - name: community.aws
   - name: ansible.posix
