@@ -2,6 +2,8 @@
 
 Ansible Roles and Playbooks to spin up secure, kerberized, multi-region CockroachDB clusters for demos and workshops.
 
+A complete example on how to use this Collection is available in this [blog](https://dev.to/cockroachlabs/deploy-cockroachdb-on-the-public-cloud-using-ansible-1ek1).
+
 ## Setup
 
 Install the **CockroachDB Collection** at playbook level
