@@ -1,10 +1,10 @@
-# Ansible Collection - fabiog1901.cockroachdb
+# CockroachDB Collection
 
-Ansible Roles and Playbooks to spin up CockroachDB clusters for demos and workshops.
+Ansible Roles and Playbooks to spin up secure, kerberized, multi-region CockroachDB clusters for demos and workshops.
 
 ## Setup
 
-Install the **Ansible CockroachDB Collection** at playbook level
+Install the **CockroachDB Collection** at playbook level
 
 ```bash
 ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-collection.git -p collections/
@@ -14,14 +14,19 @@ Install the required Ansible Collections:
 
 ```bash
 ansible-galaxy collection install -r collections/ansible_collections/fabiog1901/cockroachdb/requirements.yml 
+
+# install required pip packages for AWS, GCP, Azure
+pip install -r ~/.ansible/collections/ansible_collections/amazon/aws/requirements.txt 
+pip install -r ~/.ansible/collections/ansible_collections/google/cloud/requirements.txt 
+pip install -r ~/.ansible/collections/ansible_collections/azure/azcollection/requirements-azure.txt
 ```
 
 Now, we copy the sample Playbooks in the **CockroachDB Collection** to our working directory
 
 ```bash
-cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/* .
+cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/* .  
 mkdir config
-cp collections/ansible_collections/fabiog1901/cockroachdb/config/sample.yml config   
+cp collections/ansible_collections/fabiog1901/cockroachdb/config/sample.yml config     
 ```
 
 Check file `application.yml` includes all required steps you want to run once the infrastructure and the platform (CockroachDB cluster, HAPRoxy, etc..) have been provisioned and deployed.
@@ -39,6 +44,10 @@ export GCP_SERVICE_ACCOUNT_FILE=sa-workshop.json
 export GCP_AUTH_KIND=serviceaccount
 export GCP_PROJECT=my-gcp-project
 
+export AZURE_SUBSCRIPTION_ID=xxxxxx-yyyyy-zzzzzz
+export AZURE_AD_USER=xxxxyyyyzzzzz
+export AZURE_PASSWORD='xxxxyyyyzzzz'
+
 # start the ssh-agent and add the key
 ssh-agent
 ssh-add ~/Download/workshop.pem
@@ -50,17 +59,19 @@ You can now run the playbook
 ansible-playbook site.yml -e @config/sample.yml  
 ```
 
-## Dependancies
+## HOW-TO's
 
-- You might need to install some pip packages, example `boto`, `botocore`, `boto3`, `google-auth`, ...
+### Kerberos Login
 
-## Kerberos Login
-
-NORMAL USER  - VIA KERBEROS TICKET
+Below a reminder on how to login via Kerberos ticket
 
 ```bash
 # port 88 must be open on the krbserver
+# here, 'fabio' is a valid principal in the KDC and a valid user in the database
 kinit fabio
+
+# verify the ticket is valid
+klist
 
 # cockroach binary is also a sql client
 cockroach sql --url "postgresql://fabio@<haproxy-hostname>:26257/defaultdb?sslmode=require"
@@ -69,17 +80,16 @@ cockroach sql --url "postgresql://fabio@<haproxy-hostname>:26257/defaultdb?sslmo
 cockroach sql --url "postgresql://fabio@<haproxy-hostname>:26257/defaultdb?sslmode=require&krbsrvname=cockroach"
 ```
 
-ROOT - VIA CERTS+KEY
+### Certificate + Key login (root login)
 
 ```bash
 sudo cockroach sql --certs-dir=/var/lib/cockroach/certs
 
 # or using full DB URL
-
-sudo cockroach sql --url "postgresql://root@`hostname -f`:26257/defaultdb?sslmode=require&sslrootcert=/var/lib/cockroach/certs/ca.crt&sslcert=/var/lib/cockroach/certs/client.root.crt&sslkey=/var/lib/cockroach/certs/client.root.key" 
+sudo cockroach sql --url "postgresql://root@<haproxy-hostname>:26257/defaultdb?sslmode=require&sslrootcert=/var/lib/cockroach/certs/ca.crt&sslcert=/var/lib/cockroach/certs/client.root.crt&sslkey=/var/lib/cockroach/certs/client.root.key" 
 ```
 
-Log in as `app`, bypassing Kerberos
+Log in as `app`, bypassing Kerberos, assuming you have created cert+key for this user and the user is a databse user.
 
 ```bash
 sudo cockroach sql --url "postgresql://app@<haproxy-hostname>:26257/defaultdb?sslmode=require&sslrootcert=ca.crt&sslcert=client.app.crt&sslkey=client.app.key" 

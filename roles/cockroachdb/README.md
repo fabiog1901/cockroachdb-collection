@@ -4,52 +4,9 @@ This Ansible Role helps you install, configure, start and upgrade a CockroachDB 
 
 ## Requirements
 
-- Ansible v2.10
-
 ## Role Variables
 
-```yml
-cockroachdb_deployment_type: standard
-cockroachdb_secure: yes
-cockroachdb_krb: no
-cockroachdb_certificates_dir: certs
-cockroachdb_version: v20.2.4
-cockroachdb_join: 
-  - host1
-  - host2
-  - host3
-cockroachdb_port: 26257
-cockroachdb_http_addr_ip: "0.0.0.0"
-cockroachdb_http_addr_port: "8080"
-
-# the value for below vars are fetched individually for each node from hostvars
-# these are variables that must be already available in the Ansible inventory
-cockroachdb_locality: "region={{ region | default('') }},zone={{ zone | default('') }}"
-cockroachdb_advertise_addr: "{{ private_hostname | default('') }}"
-cockroachdb_listen_addr: "{{ private_hostname | default('') }}"
-cockroachdb_attrs: "{{ extra_vars.attrs | default('std') }}"
-cockroachdb_cluster_organization: Workshop
-cockroachdb_enterprise_license: crl-0-xxxxyyyyzzzz
-```
-
-ansible_facts must be pulled from hosts
-
-```yml
-ansible_user: ubuntu
-
-cloud: aws
-region: us-east1
-zone: b
-
-private_hostname: ip-10-0-5-222.ec2.internal
-private_ip: 10.0.5.222
-public_hostname: ec2-18-206-87-123.compute-1.amazonaws.com
-public_ip: 18.206.87.123
-```
-
 ## Dependencies
-
-None
 
 ## Example Playbook
 

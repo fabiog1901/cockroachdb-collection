@@ -23,7 +23,7 @@ Ansible role to create certificates and keys for a set of hosts and users.
       vars:
         certificates:
           organization_name: cockroachlabs
-          dir: certificates
+          dir: my-certs
           usernames:
             - root
           hosts: "{{ groups['my-inventory-group'] }}"

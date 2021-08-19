@@ -6,9 +6,6 @@ You define a list variable `infra` where each item is the definition of a _clust
 
 ## Requirements
 
-- Ansible v2.9
-- boto, boto3, botocore, google-auth
-
 ## Role Variables
 
 Variable `instance_type` can be used to set a specific instance type. As such, it won't work across all cloud providers.
@@ -50,10 +47,6 @@ Check file `defaults/main.yml` for the list of all pre-configured instances.
 
 ```yml
 ---
-# create:
-# - five 3-nodes clusters (1 master, 2 workers) on OpenStack,
-# - a single VM for FreeIPA on OpenStack,
-# - a single VM for a webserver in AWS.
 - name: PROVISION HOSTS AND BUILD ANSIBLE HOSTS INVENTORY
   hosts: localhost
   connection: local
@@ -61,37 +54,35 @@ Check file `defaults/main.yml` for the list of all pre-configured instances.
   become: no
   vars:
     infra:
-      - cloud: aws
-        count: 1 # default to 1
-        cluster_name: demo # defaults to 'cluster'
-        region: us-east1
-        vpc_id: vpc-123
-        subnet: subnet-456
-        security_group: sg-987
-        public_key_id: workshop
-        image: default_centos7
-        public_ip: yes
-        bootstrap:
-          aws: |
-            #!/bin/bash
-            touch hello-aws
-        tags:
-          owner: fabio
-          deployment_id: demo1
-
+      - cluster_name: demo
         instance_groups:
-          - inventory_groups:
-              - appservers
-            extra_vars: {}
+          - user: ubuntu
+            public_ip: yes
+            public_key_id: workshop
+            tags:
+              owner: "{{ owner }}"
+              deployment_id: "{{ deployment_id }}"
+            cloud: gcp
+            image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
+            security_group:
+              - cockroachdb
+            region: us-central1
+            vpc_id: default
+            zone: a
+            subnet: default
+            inventory_groups:
+              - krb5_server
             exact_count: 1
             instance:
-              cpu: 4
+              cpu: 2
+              mem: 4
             volumes:
-              - type: standard_ssd
-                size: 100
-                delete_on_termination: true
+              os:
+                size: 10
+                type: standard_ssd
+              data: []
             tags:
-              Name: freeipa
+              Name: "{{ deployment_id }}-kdc"
 
   tasks:
     - name: ensure presence of instances and Ansible inventory

@@ -4,11 +4,7 @@ Ansible roles for automating the installation of MIT KDC Client packages.
 
 ## Requirements
 
-- Ansible v2.8.5
-
 ## Role Variables
-
-See example below.
 
 ## Dependencies
 
@@ -17,7 +13,7 @@ See example below.
 ```yml
 ---
 - name: INSTALL MIT KDC CLIENT
-  hosts: cdpdc
+  hosts: krbclients
   become: yes
   vars:
     krb5_realm: MYREALM.LOCAL
@@ -29,9 +25,7 @@ See example below.
     krb5_enc_types: aes256-cts
   
   tasks:
-
     - name: install MIT KDC client
       include_role:
         name: install_krbclient
-
 ```

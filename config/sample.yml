@@ -1,282 +1,281 @@
 ---
-  deployment_id: quantum
-  owner: fabio
-  
-  regions:
-    defaults: &regions
-      user: ubuntu
-      public_ip: yes
-      public_key_id: workshop
-      tags:
-        owner: "{{ owner }}"
-        deployment_id: "{{ deployment_id }}"
-    aws:
-      defaults: &aws
-        <<: *regions
-        cloud: aws
-      us_west_1:
-        defaults: &aws_us_west_1
-          <<: *aws
-          region: us-west-1
-          vpc_id: vpc-0a0.....
-          security_group: sg-084d....
-          image: ami-0ebef2838fb2605b7
-        a: &aws_us_west_1a
-          <<: *aws_us_west_1
-          zone: a
-          subnet: subnet-072....
-        b: &aws_us_west_1b
-          <<: *aws_us_west_1
-          zone: b
-          subnet: subnet-0cd...
-        c: &aws_us_west_1c
-          <<: *aws_us_west_1
-          zone: c
-          subnet: subnet-0cd...
-    gcp:
-      defaults: &gcp
-        <<: *regions
-        cloud: gcp
-        image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
-        security_group:
-          - cockroachdb
-      us_east4:
-        defaults: &gcp_us_east4
-          <<: *gcp
-          region: us-east4
-          vpc_id: default
-        a: &gcp_us_east4_a
-          <<: *gcp_us_east4
-          zone: a
-          subnet: default
-        b: &gcp_us_east4_b
-          <<: *gcp_us_east4
-          zone: b
-          subnet: default
-        c: &gcp_us_east4_c
-          <<: *gcp_us_east4
-          zone: c
-          subnet: default
-      us_central1:
-        defaults: &gcp_us_central1
-          <<: *gcp
-          region: us-central1
-          vpc_id: default
-        a: &gcp_us_central1_a
-          <<: *gcp_us_central1
-          zone: a
-          subnet: default
-        b: &gcp_us_central1_b
-          <<: *gcp_us_central1
-          zone: b
-          subnet: default
-        c: &gcp_us_central1_c
-          <<: *gcp_us_central1
-          zone: c
-          subnet: default
-        f: &gcp_us_central1_f
-          <<: *gcp_us_central1
-          zone: f
-          subnet: default
-      europe_west2:
-        defaults: &gcp_europe_west2
-          <<: *gcp
-          region: europe-west2
-          vpc_id: default
-        a: &gcp_europe_west2_a
-          <<: *gcp_europe_west2
-          zone: a
-          subnet: default
-        b: &gcp_europe_west2_b
-          <<: *gcp_europe_west2
-          zone: b
-          subnet: default
-        c: &gcp_europe_west2_c
-          <<: *gcp_europe_west2
-          zone: c
-          subnet: default
-    azure:
-      defaults: &azure
-        <<: *regions
-        cloud: azure
-      westeurope:
-        defaults: &azure_westeurope
-          <<: *azure
-          region: westeurope
-          vpc_id: fabio-vnet
-          security_group: fabio-nsg
-          image: a 
-        a: &azure_westeurope_a
-          <<: *azure_westeurope
-          zone: a
-          subnet: subnet-a
-        b: &azure_westeurope_b
-          <<: *azure_westeurope
-          zone: b
-          subnet: subnet-b
-        c: &azure_westeurope_c
-          <<: *azure_westeurope
-          zone: c
-          subnet: subnet-c
-  
-  ##################
-  # INFRASTRUCTURE #
-  ##################
-  
-  # VM INSTANCES
-  infra:
-    - cluster_name: demo
-      instance_groups:
-        - <<: *gcp_us_central1_c
-          inventory_groups:
-            - krb5_server
-          exact_count: 1
-          instance:
-            cpu: 2
-            mem: 4
-          volumes:
-            os:
-              size: 10
-              type: standard_ssd
-            data: []
-          tags:
-            Name: "{{ deployment_id }}-kdc"
-  
-    - cluster_name: demo
-      inventory_groups:
-        - app
-        - krb5_client
-      exact_count: 1
-      instance:
-        cpu: 2
-        mem: 4
-      volumes:
-        os:
-          size: 10
-          type: standard_ssd
-        data: []
-      tags:
-        Name: "{{ deployment_id }}-app"
-      instance_groups:
-        - <<: *gcp_us_east4_a
-        - <<: *aws_us_west_1a
-        - <<: *gcp_europe_west2_a
-        # - <<: *azure_westeurope_a
-  
-    - cluster_name: demo
-      inventory_groups:
-        - haproxy
-      exact_count: 1
-      instance:
-        cpu: 2
-        mem: 4
-      volumes:
-        os:
-          size: 10
-          type: standard_ssd
-        data: []
-      tags:
-        Name: "{{ deployment_id }}-haproxy"
-      instance_groups:
-        - <<: *gcp_us_east4_a
-        - <<: *aws_us_west_1a
-        - <<: *gcp_europe_west2_a
-        # - <<: *azure_westeurope_c
-  
-    - cluster_name: demo
-      inventory_groups:
+deployment_id: quantum
+owner: fabio
+
+regions:
+  defaults: &regions
+    user: ubuntu
+    public_ip: yes
+    public_key_id: workshop
+    tags:
+      owner: "{{ owner }}"
+      deployment_id: "{{ deployment_id }}"
+  aws:
+    defaults: &aws
+      <<: *regions
+      cloud: aws
+    us_west_1:
+      defaults: &aws_us_west_1
+        <<: *aws
+        region: us-west-1
+        vpc_id: vpc-0a0.....
+        security_group: sg-084d....
+        image: ami-0ebef2838fb2605b7
+      a: &aws_us_west_1a
+        <<: *aws_us_west_1
+        zone: a
+        subnet: subnet-072....
+      b: &aws_us_west_1b
+        <<: *aws_us_west_1
+        zone: b
+        subnet: subnet-0cd...
+      c: &aws_us_west_1c
+        <<: *aws_us_west_1
+        zone: c
+        subnet: subnet-0cd...
+  gcp:
+    defaults: &gcp
+      <<: *regions
+      cloud: gcp
+      image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2004-lts
+      security_group:
         - cockroachdb
-      exact_count: 1
-      instance:
-        cpu: 2
-        mem: 4
-      volumes:
-        os:
-          size: 10
-          type: standard_ssd
-        data: 
-          - size: 100
-            type: local_ssd
-            delete_on_termination: true
-      tags:
-        Name: "{{ deployment_id }}-cockroach"
-      instance_groups:
-        - <<: *gcp_us_east4_a
-        - <<: *gcp_us_east4_b
-        - <<: *gcp_us_east4_c
-        - <<: *aws_us_west_1a
-        - <<: *aws_us_west_1b
-        - <<: *aws_us_west_1c
-        - <<: *gcp_europe_west2_a
-        - <<: *gcp_europe_west2_b
-        - <<: *gcp_europe_west2_c
-        # - <<: *azure_westeurope_a
-        # - <<: *azure_westeurope_b
-        # - <<: *azure_westeurope_c
-  
-  ############
-  # PLATFORM #
-  ############
-  
-  # OPENSSL CERTIFICATES
-  certificates:
-    organization_name: fabio-org
-    dir: &certs
-      certs
-    usernames: &crdb_client_certs
-      - root
+    us_east4:
+      defaults: &gcp_us_east4
+        <<: *gcp
+        region: us-east4
+        vpc_id: default
+      a: &gcp_us_east4_a
+        <<: *gcp_us_east4
+        zone: a
+        subnet: default
+      b: &gcp_us_east4_b
+        <<: *gcp_us_east4
+        zone: b
+        subnet: default
+      c: &gcp_us_east4_c
+        <<: *gcp_us_east4
+        zone: c
+        subnet: default
+    us_central1:
+      defaults: &gcp_us_central1
+        <<: *gcp
+        region: us-central1
+        vpc_id: default
+      a: &gcp_us_central1_a
+        <<: *gcp_us_central1
+        zone: a
+        subnet: default
+      b: &gcp_us_central1_b
+        <<: *gcp_us_central1
+        zone: b
+        subnet: default
+      c: &gcp_us_central1_c
+        <<: *gcp_us_central1
+        zone: c
+        subnet: default
+      f: &gcp_us_central1_f
+        <<: *gcp_us_central1
+        zone: f
+        subnet: default
+    europe_west2:
+      defaults: &gcp_europe_west2
+        <<: *gcp
+        region: europe-west2
+        vpc_id: default
+      a: &gcp_europe_west2_a
+        <<: *gcp_europe_west2
+        zone: a
+        subnet: default
+      b: &gcp_europe_west2_b
+        <<: *gcp_europe_west2
+        zone: b
+        subnet: default
+      c: &gcp_europe_west2_c
+        <<: *gcp_europe_west2
+        zone: c
+        subnet: default
+  azure:
+    defaults: &azure
+      <<: *regions
+      cloud: azure
+    westeurope:
+      defaults: &azure_westeurope
+        <<: *azure
+        region: westeurope
+        vpc_id: fabio-vnet
+        security_group: fabio-nsg
+        image: a 
+      a: &azure_westeurope_a
+        <<: *azure_westeurope
+        zone: a
+        subnet: subnet-a
+      b: &azure_westeurope_b
+        <<: *azure_westeurope
+        zone: b
+        subnet: subnet-b
+      c: &azure_westeurope_c
+        <<: *azure_westeurope
+        zone: c
+        subnet: subnet-c
+
+##################
+# INFRASTRUCTURE #
+##################
+
+# VM INSTANCES
+infra:
+  - cluster_name: demo
+    instance_groups:
+      - <<: *gcp_us_central1_c
+        inventory_groups:
+          - krb5_server
+        exact_count: 1
+        instance:
+          cpu: 2
+          mem: 4
+        volumes:
+          os:
+            size: 10
+            type: standard_ssd
+          data: []
+        tags:
+          Name: "{{ deployment_id }}-kdc"
+
+  - cluster_name: demo
+    inventory_groups:
       - app
-    hosts: "{{ groups['cockroachdb'] }}"
-  
-  #  MIT KDC
-  krb5_realm: FABIO.LOCAL
-  krb5_kdc_type: MIT KDC
-  krb5_kdc_host: "{{ hostvars[(groups[cluster_name] | intersect(groups['krb5_server']))[0]].public_ip }}"
-  krb5_kdc_admin_user: "admin/admin@{{ krb5_realm }}"
-  krb5_kdc_admin_passwd: Password20@
-  krb5_kdc_master_passwd: Password20@
-  krb5_enc_types: aes256-cts
-  krb5_principals:
-    - name: fabio
-      password: cockroach
-  
-  # COCKROACHDB
-  cockroachdb_deployment: standard
-  cockroachdb_secure: yes
-  cockroachdb_krb: yes
-  cockroachdb_krbsrvname: cockroach
-  cockroachdb_certificates_dir: *certs
-  cockroachdb_certificates_clients: *crdb_client_certs
-  cockroachdb_version: v21.1.5
-  cockroachdb_join:
-    - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].public_ip }}"
-    - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].public_ip }}"
-    - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].public_ip }}"
-  cockroachdb_port: 26257
-  cockroachdb_http_addr_ip: "0.0.0.0"
-  cockroachdb_http_addr_port: "8080"
-  
-  # the value for below vars are fetched individually for each node from hostvars
-  # these are variables that must be already available in the Ansible inventory
-  cockroachdb_locality: "region={{ region | default('') }},zone={{ zone | default('') }}"
-  cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
-  # cockroachdb_listen_addr: "{{ public_ip | default('') }}"
-  # cockroachdb_attrs: "{{ extra_vars.attrs | default('std') }}"
-  cockroachdb_cluster_organization: Workshop
-  cockroachdb_enterprise_license: crl-0-xxxxxyyyyyzzzzz
-  
-  
-  ###############
-  # APPLICATION #
-  ###############
-  
-  dbusers:
-    - name: fabio
-      password: cockroach
-      is_cert: no
-      is_admin: yes
-    - name: app
-      password: null
-      is_cert: yes
-      is_admin: yes
-  
+      - krb5_client
+    exact_count: 1
+    instance:
+      cpu: 2
+      mem: 4
+    volumes:
+      os:
+        size: 10
+        type: standard_ssd
+      data: []
+    tags:
+      Name: "{{ deployment_id }}-app"
+    instance_groups:
+      - <<: *gcp_us_east4_a
+      - <<: *aws_us_west_1a
+      - <<: *gcp_europe_west2_a
+      # - <<: *azure_westeurope_a
+
+  - cluster_name: demo
+    inventory_groups:
+      - haproxy
+    exact_count: 1
+    instance:
+      cpu: 2
+      mem: 4
+    volumes:
+      os:
+        size: 10
+        type: standard_ssd
+      data: []
+    tags:
+      Name: "{{ deployment_id }}-haproxy"
+    instance_groups:
+      - <<: *gcp_us_east4_a
+      - <<: *aws_us_west_1a
+      - <<: *gcp_europe_west2_a
+      # - <<: *azure_westeurope_c
+
+  - cluster_name: demo
+    inventory_groups:
+      - cockroachdb
+    exact_count: 1
+    instance:
+      cpu: 2
+      mem: 4
+    volumes:
+      os:
+        size: 10
+        type: standard_ssd
+      data: 
+        - size: 100
+          type: local_ssd
+          delete_on_termination: true
+    tags:
+      Name: "{{ deployment_id }}-cockroach"
+    instance_groups:
+      - <<: *gcp_us_east4_a
+      - <<: *gcp_us_east4_b
+      - <<: *gcp_us_east4_c
+      - <<: *aws_us_west_1a
+      - <<: *aws_us_west_1b
+      - <<: *aws_us_west_1c
+      - <<: *gcp_europe_west2_a
+      - <<: *gcp_europe_west2_b
+      - <<: *gcp_europe_west2_c
+      # - <<: *azure_westeurope_a
+      # - <<: *azure_westeurope_b
+      # - <<: *azure_westeurope_c
+
+############
+# PLATFORM #
+############
+
+# OPENSSL CERTIFICATES
+certificates:
+  organization_name: fabio-org
+  dir: &certs
+    certs
+  usernames: &crdb_client_certs
+    - root
+    - app
+  hosts: "{{ groups['cockroachdb'] }}"
+
+#  MIT KDC
+krb5_realm: FABIO.LOCAL
+krb5_kdc_type: MIT KDC
+krb5_kdc_host: "{{ hostvars[(groups[cluster_name] | intersect(groups['krb5_server']))[0]].public_ip }}"
+krb5_kdc_admin_user: "admin/admin@{{ krb5_realm }}"
+krb5_kdc_admin_passwd: Password20@
+krb5_kdc_master_passwd: Password20@
+krb5_enc_types: aes256-cts
+krb5_principals:
+  - name: fabio
+    password: cockroach
+
+# COCKROACHDB
+cockroachdb_deployment: standard
+cockroachdb_secure: yes
+cockroachdb_krb: yes
+cockroachdb_krbsrvname: cockroach
+cockroachdb_certificates_dir: *certs
+cockroachdb_certificates_clients: *crdb_client_certs
+cockroachdb_version: v21.1.5
+cockroachdb_join:
+  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].public_ip }}"
+  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].public_ip }}"
+  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].public_ip }}"
+cockroachdb_port: 26257
+cockroachdb_http_addr_ip: "0.0.0.0"
+cockroachdb_http_addr_port: "8080"
+
+# the value for below vars are fetched individually for each node from hostvars
+# these are variables that must be already available in the Ansible inventory
+cockroachdb_locality: "region={{ region | default('') }},zone={{ zone | default('') }}"
+cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
+# cockroachdb_listen_addr: "{{ public_ip | default('') }}"
+# cockroachdb_attrs: "{{ extra_vars.attrs | default('std') }}"
+cockroachdb_cluster_organization: Workshop
+cockroachdb_enterprise_license: crl-0-xxxxxyyyyyzzzzz
+
+
+###############
+# APPLICATION #
+###############
+
+dbusers:
+  - name: fabio
+    password: cockroach
+    is_cert: no
+    is_admin: yes
+  - name: app
+    password: null
+    is_cert: yes
+    is_admin: yes
