@@ -15,5 +15,8 @@
   when: cockroachdb_deployment_type not in ('install only', 'upgrade')
   
 - name: Restart after Upgrade
-  include_tasks: standard.yml
   when: cockroachdb_deployment_type == 'upgrade'
+  block:
+    - include_tasks: standard.yml
+    - ansible.builtin.pause:
+        seconds: "{{ cockroachdb_upgrade_delay | default(300) }}"

@@ -1,9 +1,4 @@
 ---
-# TODO find attached disk mountpoint as in cdsw dockerdevice
-# TODO: add multiple --store for multiple disks
-# TODO: use systemd instead systemctl start securecockroachdb
-# TODO: check productin checklist
-
 - name: restart cockroachdb service
   ansible.builtin.systemd:
     name: cockroachdb
