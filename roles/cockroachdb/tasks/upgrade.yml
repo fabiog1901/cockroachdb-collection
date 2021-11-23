@@ -1,51 +1,30 @@
 ---
+# verify you can actually upgrade
 - name: get current cockroachdb binary version
   shell: |
     cockroach version | head -n1 | awk '{print $3}'
   register: _version
 
-- set_fact:  
+- name: set a few variables
+  set_fact:  
     current_major_version: "{{ (_version.stdout[1:3] + _version.stdout[4]) | int }}"
     desired_major_version: "{{ (cockroachdb_version[1:3] + cockroachdb_version[4]) | int }}"
 
-# if current version is not the same as desired version &&
-# desired version major release (21.1) is same as current version major release (21.1),
-# that is, it's PATCH upgrade/downgrade
-- name: stop cockroachdb service for the Patch Upgrade
-  service:
-    name: cockroachdb
-    state: stopped
-  when: _version.stdout != cockroachdb_version and current_major_version == desired_major_version
-
 # if desired major version release (21.1.x) is less than the current major version release (21.2.x),
 # that is, it's MAJOR DOWNGRADE, fail as it is not supported
-- when: current_major_version > desired_major_version
-  block:
-    - name: fail as we don't support downgrades
-      ansible.builtin.fail: 
-        msg: "Downgrades are not supported: from {{ _version.stdout }} down to {{ cockroachdb_version }}"
-      when: iknowwhatiamdoing is not defined or not iknowwhatiamdoing
-
-    - name: stop cockroachdb service for Downgrade
-      service:
-        name: cockroachdb
-        state: stopped
-      when: iknowwhatiamdoing
+- name: fail as we don't support downgrades
+  ansible.builtin.fail: 
+    msg: "Downgrades are not supported: from {{ _version.stdout }} down to {{ cockroachdb_version }}"
+  when: current_major_version > desired_major_version and (iknowwhatiamdoing is not defined or not iknowwhatiamdoing)
 
 # if desired major version release is greater than the current major version release,
 # it's a MAJOR UPGRADE 
-- when: desired_major_version > current_major_version 
-  block:
-    - name: preserve downgrade
-      run_once: yes
-      ansible.builtin.shell: |
-        cockroach sql \
-          {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
-          --host={{ cockroachdb_advertise_addr }} \
-          -e "SET CLUSTER SETTING cluster.preserve_downgrade_option = '{{ _version.stdout[1:5] }}';"
-      when: not cockroachdb_autofinalize
+- name: preserve downgrade
+  run_once: yes
+  ansible.builtin.shell: |
+    cockroach sql \
+      {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
+      --host={{ cockroachdb_advertise_addr }} \
+      -e "SET CLUSTER SETTING cluster.preserve_downgrade_option = '{{ _version.stdout[1:5] }}';"
+  when: desired_major_version > current_major_version and not cockroachdb_autofinalize
 
-    - name: stop cockroachdb service for Major Upgrade
-      service:
-        name: cockroachdb
-        state: stopped

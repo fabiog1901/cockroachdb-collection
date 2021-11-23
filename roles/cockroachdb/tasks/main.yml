@@ -1,22 +1,41 @@
 ---
 - name: Upgrade CockroachDB
-  when: cockroachdb_deployment_type == 'upgrade'
   include_tasks: upgrade.yml
+  when: cockroachdb_deployment_type == 'upgrade'
 
 - name: install CockroachDB binary
   import_tasks: install.yml
 
 - name: Configure OS for CockroachDB
   include_tasks: config_os.yml
-  when: cockroachdb_deployment_type not in ('install only', 'upgrade')
+  when: cockroachdb_deployment_type == 'standard'
 
-- name: Deploy CockroachDB
-  include_tasks: "{{ cockroachdb_deployment_type | lower }}.yml"
-  when: cockroachdb_deployment_type not in ('install only', 'upgrade')
-  
-- name: Restart after Upgrade
+- name: restart cockroachdb service
+  ansible.builtin.systemd:
+    name: cockroachdb
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
   when: cockroachdb_deployment_type == 'upgrade'
-  block:
-    - include_tasks: standard.yml
-    - ansible.builtin.pause:
-        seconds: "{{ cockroachdb_upgrade_delay | default(300) }}"
+
+- name: Ensure cockroachdb service is started
+  ansible.builtin.systemd:
+    name: cockroachdb
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Init Cluster
+  shell: |
+    cockroach init \
+    {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
+    --host={{ cockroachdb_join[0] }}:{{ cockroachdb_port }}
+  register: result
+  failed_when: result.rc != 0 and 'cluster has already been initialized' not in result.stderr and 'unable to bootstrap due to internal error' not in result.stderr
+  when: cockroachdb_deployment_type == 'standard'
+
+- name: Pause between node upgrades
+  ansible.builtin.pause:
+    seconds: "{{ cockroachdb_upgrade_delay | default(300) }}"
+  when: cockroachdb_deployment_type == 'upgrade'
+  
