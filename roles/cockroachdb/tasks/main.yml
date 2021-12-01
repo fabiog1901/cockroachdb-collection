@@ -24,6 +24,7 @@
     state: started
     enabled: yes
     daemon_reload: yes
+  when: cockroachdb_deployment_type != 'install only'
 
 - name: Init Cluster
   shell: |
