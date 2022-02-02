@@ -14,15 +14,17 @@ subjectAltName = critical, @san
 [ san ]
 DNS.1 = localhost
 DNS.2 = node
-DNS.3 = {{ hostvars[item].private_hostname }}
-DNS.4 = {{ hostvars[item].public_hostname }}
+DNS.3 = {{ hostvars[item].private_hostname.split('.')[0] }}
+DNS.4 = {{ hostvars[item].private_hostname }}
+DNS.5 = {{ hostvars[item].public_hostname }}
 IP.1 = 127.0.0.1
 IP.2 = {{ hostvars[item].private_ip }}
 IP.3 = {{ hostvars[item].public_ip }}
 
 {% for lb in certificates_loadbalancer %}
-DNS.{{ loop.index + 4 }} = {{ hostvars[lb].private_hostname }}
-DNS.{{ loop.index + 5 }} = {{ hostvars[lb].public_hostname }}
+DNS.{{ loop.index + 5 }} = {{ hostvars[lb].private_hostname.split('.')[0] }}
+DNS.{{ loop.index + 6 }} = {{ hostvars[lb].private_hostname }}
+DNS.{{ loop.index + 7 }} = {{ hostvars[lb].public_hostname }}
 IP.{{ loop.index + 3 }} = {{ hostvars[lb].private_ip }}
 IP.{{ loop.index + 4 }} = {{ hostvars[lb].public_ip }}
 {% endfor %}

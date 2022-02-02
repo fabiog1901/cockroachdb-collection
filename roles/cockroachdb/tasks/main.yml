@@ -10,18 +10,10 @@
   include_tasks: config_os.yml
   when: cockroachdb_deployment_type == 'standard'
 
-- name: restart cockroachdb service
+- name: Ensure cockroachdb service is restarted
   ansible.builtin.systemd:
     name: cockroachdb
     state: restarted
-    enabled: yes
-    daemon_reload: yes
-  when: cockroachdb_deployment_type == 'upgrade'
-
-- name: Ensure cockroachdb service is started
-  ansible.builtin.systemd:
-    name: cockroachdb
-    state: started
     enabled: yes
     daemon_reload: yes
   when: cockroachdb_deployment_type != 'install only'
