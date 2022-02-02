@@ -21,10 +21,10 @@ Ansible role to create certificates and keys for a set of hosts and users.
     - include_role:
         name: certificates
       vars:
-        certificates:
-          organization_name: cockroachlabs
-          dir: my-certs
-          usernames:
+        certificates_organization_name: cockroachlabs
+        certificates_dir: my-certs
+        certificates_usernames:
             - root
-          hosts: "{{ groups['my-inventory-group'] }}"
+        certificates_hosts: "{{ groups['my-inventory-group'] }}"
+        certificates_loadbalancer: "{{ groups['my-lb-group'] }}"
 ```

@@ -1,23 +1,19 @@
 ---
-- name: combine var cockroachdb to default dict
-  ansible.builtin.set_fact:
-    _certificates: "{{ _certificates | combine(certificates, recursive=True) }}"
-
 - name: Recursively remove directory
   ansible.builtin.file:
-    path: "{{ _certificates.dir }}"
+    path: "{{ certificates_dir }}"
     state: absent
 
 - name: Create a directory if it does not exist
   ansible.builtin.file:
-    path: "{{ _certificates.dir }}"
+    path: "{{ certificates_dir }}"
     state: directory
     mode: "0755"
  
 # Step 1. Create the CA key and certificate pair
 - name: Create a directory if it does not exist
   ansible.builtin.file:
-    path: "{{ _certificates.dir }}/{{ item }}"
+    path: "{{ certificates_dir }}/{{ item }}"
     state: directory
     mode: "0755"
   loop:
@@ -27,93 +23,93 @@
 - name: Set ca.cnf
   ansible.builtin.template:
     src: ca.cnf.j2
-    dest: "{{ _certificates.dir }}/ca.cnf"
+    dest: "{{ certificates_dir }}/ca.cnf"
 
 - name: create the CA key pair
   ansible.builtin.shell: |
     openssl genrsa \
-      -out {{ _certificates.dir }}/my-safe-directory/ca.key 2048
-    chmod 400 {{ _certificates.dir }}/my-safe-directory/ca.key
+      -out {{ certificates_dir }}/my-safe-directory/ca.key 2048
+    chmod 400 {{ certificates_dir }}/my-safe-directory/ca.key
     openssl req \
       -new \
       -x509 \
-      -config {{ _certificates.dir }}/ca.cnf \
-      -key {{ _certificates.dir }}/my-safe-directory/ca.key \
-      -out {{ _certificates.dir }}/certs/ca.crt \
+      -config {{ certificates_dir }}/ca.cnf \
+      -key {{ certificates_dir }}/my-safe-directory/ca.key \
+      -out {{ certificates_dir }}/certs/ca.crt \
       -days 365 \
       -batch
-    rm -f {{ _certificates.dir }}/index.txt {{ _certificates.dir }}/serial.txt
-    touch {{ _certificates.dir }}/index.txt
-    echo '01' > {{ _certificates.dir }}/serial.txt
+    rm -f {{ certificates_dir }}/index.txt {{ certificates_dir }}/serial.txt
+    touch {{ certificates_dir }}/index.txt
+    echo '01' > {{ certificates_dir }}/serial.txt
 
 # Step 2. Create the certificate and key pairs for nodes
 - name: Create ca.cnf for each node
   ansible.builtin.template:
     src: node.cnf.j2
-    dest: "{{ _certificates.dir }}/node.{{ item }}.cnf"
-  loop: "{{_certificates.hosts }}"
+    dest: "{{ certificates_dir }}/node.{{ item }}.cnf"
+  loop: "{{ certificates_hosts }}"
 
 - name: create nodes key pair
   ansible.builtin.shell: |
     openssl genrsa \
-      -out {{ _certificates.dir }}/certs/node.{{ item }}.key 2048
-    chmod 400 {{ _certificates.dir }}/certs/node.{{ item }}.key
-  loop: "{{ _certificates.hosts }}"
+      -out {{ certificates_dir }}/certs/node.{{ item }}.key 2048
+    chmod 400 {{ certificates_dir }}/certs/node.{{ item }}.key
+  loop: "{{ certificates_hosts }}"
 
 - name: create nodes certificate
   ansible.builtin.shell: |
     openssl req \
       -new \
-      -config {{ _certificates.dir }}/node.{{ item }}.cnf \
-      -key {{ _certificates.dir }}/certs/node.{{ item }}.key \
-      -out {{ _certificates.dir }}/node.{{ item }}.csr \
+      -config {{ certificates_dir }}/node.{{ item }}.cnf \
+      -key {{ certificates_dir }}/certs/node.{{ item }}.key \
+      -out {{ certificates_dir }}/node.{{ item }}.csr \
       -batch
 
     openssl ca \
-      -config {{ _certificates.dir }}/ca.cnf \
-      -keyfile {{ _certificates.dir }}/my-safe-directory/ca.key \
-      -cert {{ _certificates.dir }}/certs/ca.crt \
+      -config {{ certificates_dir }}/ca.cnf \
+      -keyfile {{ certificates_dir }}/my-safe-directory/ca.key \
+      -cert {{ certificates_dir }}/certs/ca.crt \
       -policy signing_policy \
       -extensions signing_node_req \
-      -out {{ _certificates.dir }}/certs/node.{{ item }}.crt \
-      -outdir {{ _certificates.dir }}/certs/ \
-      -in {{ _certificates.dir }}/node.{{ item }}.csr \
+      -out {{ certificates_dir }}/certs/node.{{ item }}.crt \
+      -outdir {{ certificates_dir }}/certs/ \
+      -in {{ certificates_dir }}/node.{{ item }}.csr \
       -batch
-  loop: "{{ _certificates.hosts }}"
+  loop: "{{ certificates_hosts }}"
 
 # Step 3. Create the certificate and key pair for the root user
 - name: Create client.cnf for root
   ansible.builtin.template:
     src: client.cnf.j2
-    dest: "{{ _certificates.dir }}/client.{{ item }}.cnf"
-  loop: "{{ _certificates.usernames }}"
+    dest: "{{ certificates_dir }}/client.{{ item }}.cnf"
+  loop: "{{ certificates_usernames }}"
 
 - name: create client key pair
   ansible.builtin.shell: |
     openssl genrsa \
-      -out {{ _certificates.dir }}/certs/client.{{ item }}.key 2048
+      -out {{ certificates_dir }}/certs/client.{{ item }}.key 2048
 
-    chmod 400 {{ _certificates.dir }}/certs/client.{{ item }}.key
-  loop: "{{ _certificates.usernames }}"
+    chmod 400 {{ certificates_dir }}/certs/client.{{ item }}.key
+  loop: "{{ certificates_usernames }}"
 
 
 - name: create client certificates
   ansible.builtin.shell: |
     openssl req \
       -new \
-      -config {{ _certificates.dir }}/client.{{ item }}.cnf \
-      -key {{ _certificates.dir }}/certs/client.{{ item }}.key \
-      -out {{ _certificates.dir }}/client.{{ item }}.csr \
+      -config {{ certificates_dir }}/client.{{ item }}.cnf \
+      -key {{ certificates_dir }}/certs/client.{{ item }}.key \
+      -out {{ certificates_dir }}/client.{{ item }}.csr \
       -batch
 
     openssl ca \
-      -config {{ _certificates.dir }}/ca.cnf \
-      -keyfile {{ _certificates.dir }}/my-safe-directory/ca.key \
-      -cert {{ _certificates.dir }}/certs/ca.crt \
+      -config {{ certificates_dir }}/ca.cnf \
+      -keyfile {{ certificates_dir }}/my-safe-directory/ca.key \
+      -cert {{ certificates_dir }}/certs/ca.crt \
       -policy signing_policy \
       -extensions signing_client_req \
-      -out {{ _certificates.dir }}/certs/client.{{ item }}.crt \
-      -outdir {{ _certificates.dir }}/certs/ \
-      -in {{ _certificates.dir }}/client.{{ item }}.csr \
+      -out {{ certificates_dir }}/certs/client.{{ item }}.crt \
+      -outdir {{ certificates_dir }}/certs/ \
+      -in {{ certificates_dir }}/client.{{ item }}.csr \
       -batch
-  loop: "{{ _certificates.usernames }}"
+  loop: "{{ certificates_usernames }}"

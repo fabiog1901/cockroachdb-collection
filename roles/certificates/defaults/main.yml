@@ -1,7 +1,6 @@
-_certificates:
-  organization_name: Default Org
-  node_common_name: node
-  dir: certificates
-  usernames: 
-    - root
-  hosts: []
+certificates_organization_name: Default Org
+certificates_dir: certificates
+certificates_usernames: 
+  - root
+certificates_hosts: []
+certificates_loadbalancer: []

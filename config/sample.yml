@@ -219,14 +219,14 @@ infra:
 ############
 
 # OPENSSL CERTIFICATES
-certificates:
-  organization_name: fabio-org
-  dir: &certs
-    certs
-  usernames: &crdb_client_certs
-    - root
-    - app
-  hosts: "{{ groups['cockroachdb'] }}"
+certificates_organization_name: fabio-org
+certificates_dir: &certs
+  certs
+certificates_usernames: &crdb_client_certs
+  - root
+  - app
+certificates_hosts: "{{ groups['cockroachdb'] }}"
+certificates_loadbalancer: "{{ groups['haproxy'] }}"
 
 #  MIT KDC
 krb5_realm: FABIO.LOCAL
