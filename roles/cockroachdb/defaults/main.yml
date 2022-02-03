@@ -20,4 +20,5 @@ cockroachdb_locality: ''
 cockroachdb_advertise_addr: ''
 cockroachdb_listen_addr: '0.0.0.0'
 cockroachdb_attrs: 'std'
-
+cockroachdb_cache: '.25'
+cockroachdb_max_sql_memory: '.25'

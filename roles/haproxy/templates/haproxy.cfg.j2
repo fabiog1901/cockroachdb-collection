@@ -19,7 +19,7 @@ listen psql
     
     {% for host in haproxy_group %}
     {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
-    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].public_ip }}:{{ haproxy_port }} check port {{ haproxy_checkport }}
+    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].private_hostname }}:{{ haproxy_port }} check port {{ haproxy_checkport }}
     {% endif %}
     {% endfor %}
 
@@ -31,7 +31,7 @@ listen http
 
     {% for host in haproxy_group %}
     {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
-    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].public_ip }}:8080 check port {{ haproxy_checkport }}
+    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].private_hostname }}:8080 check port {{ haproxy_checkport }}
     {% endif %}
     {% endfor %}
 
