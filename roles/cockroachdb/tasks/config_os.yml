@@ -28,6 +28,25 @@
     - /var/lib/cockroach
     - /mnt/cockroach
 
+- when: cockroachdb_encryption
+  block:
+    - name: copy new EAR key
+      copy:
+        src: "{{ cockroachdb_encryption_key_new }}"
+        dest: /var/lib/cockroach/ear-128.key
+        owner: cockroach
+        group: cockroach
+        mode: "0400"
+
+    - name: copy old EAR key
+      copy:
+        src: "{{ cockroachdb_encryption_key_old }}"
+        dest: /var/lib/cockroach/old-ear-128.key
+        owner: cockroach
+        group: cockroach
+        mode: "0400"
+      when: cockroachdb_encryption_key_old is defined
+
 - name: copy certs
   when: cockroachdb_secure
   block:

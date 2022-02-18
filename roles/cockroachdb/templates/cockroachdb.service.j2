@@ -9,6 +9,8 @@ ExecStart=/usr/local/bin/cockroach start \
     {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
     {% for store in cockroachdb_store %}
     --store={{ store }} \
+    {% if cockroachdb_encryption %} {{ cockroachdb_encryption_flag }}=path={{store}},key=/var/lib/cockroach/ear-128.key,old-key={{ (cockroachdb_encryption_key_old is defined) | ternary(("/var/lib/cockroach/" + cockroachdb_encryption_key_old|default('')), "plain" )}} \
+    {% endif %}
     {% endfor %}
     --listen-addr={{ cockroachdb_listen_addr }}:26257 \
     --advertise-addr={{ cockroachdb_advertise_addr }}:26257 \
