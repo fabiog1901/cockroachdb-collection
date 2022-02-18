@@ -2,6 +2,9 @@
 - name: pull cloud provider specific vars
   include_vars: "{{ cloud }}.yml"
 
+- name: Run cloud provider specific tasks
+  include_tasks: "cloud/{{ cloud }}.yml"
+
 - name: pull os family specific vars
   include_vars: "{{ ansible_facts.os_family | lower }}.yml"
 
@@ -68,21 +71,22 @@
         mode: "0400"
       loop: "{{ cockroachdb_certificates_clients }}"
 
+- when: cloud != 'azure'
+  block:
+    - name: install chrony/ntp
+      package:
+        name: "{{ ntp_package_name }}"
+        state: latest
+        
+    - name: Add the preferred Chrony/NTP server
+      lineinfile:
+        path: "{{ ntp_conf }}"
+        line: "{{ ntp_server }}"
 
-- name: install chrony
-  package:
-    name: "{{ ntp_package_name }}"
-    state: latest
-    
-- name: Add the preferred Chrony/NTP server
-  lineinfile:
-    path: "{{ ntp_conf }}"
-    line: "{{ ntp_server }}"
-
-- name: restart chronyd/ntp
-  service:
-    name: "{{ ntp_deamon }}"
-    state: restarted
+    - name: restart chronyd/ntp
+      service:
+        name: "{{ ntp_deamon }}"
+        state: restarted
 
 - name: Update VM swappiness
   sysctl:

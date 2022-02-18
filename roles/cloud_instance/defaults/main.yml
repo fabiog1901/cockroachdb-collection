@@ -8,7 +8,7 @@ instances:
     # GPUs
     0:
       0:
-        0: m5.4xlarge
+        0: m6i.4xlarge
       # CPUs
       1:
         # MEM
@@ -20,39 +20,39 @@ instances:
         2: t2.small
       2:
         high_cpu: c5.large
-        0: m5.large
+        0: m6i.large
         high_mem: r5.large
         1: t3.micro
         2: t3.small
         4: c5.large
-        8: m5.large
+        8: m6i.large
         16: r5.large
       4:
         high_cpu: c5.xlarge
-        0: m5.xlarge
+        0: m6i.xlarge
         high_mem: r5.xlarge
         8: c5.xlarge
-        16: m5.xlarge
+        16: m6i.xlarge
         32: r5.xlarge
       8:
         high_cpu: c5.2xlarge
-        0: m5.2xlarge
+        0: m6i.2xlarge
         high_mem: r5.2xlarge
         16: c5.2xlarge
-        32: m5.2xlarge
+        32: m6i.2xlarge
         64: r5.2xlarge
       16:
         high_cpu: c5.4xlarge
-        0: m5.4xlarge
+        0: m6i.4xlarge
         high_mem: r5.4xlarge
         32: c5.4xlarge
-        64: m5.4xlarge
+        64: m6i.4xlarge
         128: r5.4xlarge
       32:
         high_cpu: c5.9xlarge
-        0: m5.8xlarge
+        0: m6i.8xlarge
         high_mem: r5.8xlarge
-        128: m5.8xlarge
+        128: m6i.8xlarge
         256: r5.8xlarge
     1:
       0:

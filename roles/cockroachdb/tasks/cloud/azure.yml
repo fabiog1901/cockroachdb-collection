@@ -1,0 +1,41 @@
+- name: disable azure ntp
+  shell: |
+    curl -O https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+    DEVICE_ID=`python3 lsvmbus -vv | grep -w "Time Synchronization" -A 1 | awk -F'[{}]' '{print $2}' | tail -n1`
+    echo $DEVICE_ID | sudo tee /sys/bus/vmbus/drivers/hv_utils/unbind
+
+    apt update
+    apt remove -y chrony
+    apt install -y ntp 
+  register: out
+
+- debug:
+    msg: "{{ out }}"
+
+- name: stop ntp
+  ansible.builtin.systemd:
+    name: ntp
+    state: stopped
+
+- name: update ntp config
+  shell: |
+    sed -i '/^pool.*/'d /etc/ntp.conf
+    sed -i '/^server.*/'d /etc/ntp.conf
+
+    cat - >> /etc/ntp.conf <<EOF
+    server time1.google.com iburst
+    server time2.google.com iburst
+    server time3.google.com iburst
+    server time4.google.com iburst
+    EOF
+
+  register: out
+  ignore_errors: yes
+
+- debug:
+    msg: "{{ out }}"
+
+- name: restart ntp
+  ansible.builtin.systemd:
+    name: ntp
+    state: restarted

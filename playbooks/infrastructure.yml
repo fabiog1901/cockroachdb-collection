@@ -16,5 +16,10 @@
         msg:
           - "PRINT GROUPS MAGIC VARIABLE"
           - "{{ groups }}"
+
+    - template:
+        src: inventory.j2
+        dest: inventory.ini
+
   tags:
     - cloud_instance

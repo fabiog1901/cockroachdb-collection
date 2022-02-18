@@ -1,2 +1,2 @@
 ---
-#ntp_server:
+ntp_server: "server time1.google.com iburst\nserver time2.google.com iburst\nserver time3.google.com iburst\nserver time4.google.com iburst"
