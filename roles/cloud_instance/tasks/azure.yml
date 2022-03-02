@@ -1,38 +1,41 @@
 ---
 - name: set vars to build 'name'
-  set_fact:
+  ansible.builtin.set_fact:
     _id: "{{ deployment_id }}"
     _cl_name: "{{ _infra_item.cluster_name | default(_cluster_name) }}-{{ _idx }}"
-    _type: "{{ _grp.tags.Name | default(_grp.inventory_groups[0]) | regex_replace('[^A-Za-z0-9]', '') }}"
+    _type: "{{ _grp.tags.Name | default(_grp.inventory_groups[0]) | default(_infra_item.inventory_groups[0]) | regex_replace('[^A-Za-z0-9]', '') }}-{{ _grp_idx }}"
     _image: "{{ _grp.image | default(_infra_item.image) }}"
     _user: "{{ _grp.user | default(_infra_item.user) | default('') }}"
     _instance_type: "{{ _grp.instance_type | default(_infra_item.instance_type) | default('') }}"
     _instance: "{{ _grp.instance | default(_infra_item.instance) | default({}) }}"
+    _cloud: "{{ _grp.cloud | default(_infra_item.cloud) }}"
 
 - name: set ansible tags
-  set_fact:
-    _count_tag: "{{ (deployment_id + '-' + _cl_name + '-' + _type) | lower }}"
+  ansible.builtin.set_fact:
+    _count_tag: "{{ deployment_id|lower }}-{{ _cl_name|lower }}-{{ _type|lower }}" #"{{ (deployment_id + '-' + _cl_name + '-' + _type) | lower }}"
     _t0:
-      # ansible_id: "{{ deployment_id }}-{{ _cl_name }}-{{ _type }}-{{ item }}"
       ansible_cluster_name: "{{ _cl_name }}"
-      ansible_inv_groups: "{{ _grp.inventory_groups | join(';') | quote }}"
-      ansible_extra_vars: "{{ _grp.extra_vars | default({}) | to_json | quote }}"
+      ansible_inv_groups: "{{ _grp.inventory_groups | default([]) | union(_infra_item.inventory_groups | default([])) | join(',')}}"
+      extra_vars: "{{ _grp.extra_vars | default({}) | to_json }}"
       cluster_name: "{{ _infra_item.cluster_name | default(_cluster_name) }}"
-      ansible_user: "{{ (_image not in images[_infra_item.cloud]) | ternary(_user, images[_infra_item.cloud][_image].user ) }}"
-      ansible_count_tag: "{{ deployment_id }}-{{ _cl_name }}-{{ _type }}"
+      region: "{{ _infra_item.region | default(_grp.region) | default('') }}"
+      zone: "{{ _infra_item.zone | default(_grp.zone) | default('') }}"
+      ansible_user: "{{ _user }}"
 
 - name: combine all tags
-  set_fact:
+  ansible.builtin.set_fact:
     _t1: "{{ _grp.tags | default({}) }}"
     _t2: "{{ _infra_item.tags | default({}) }}"
 
 - name: combine all tags to final tags dict
-  set_fact:
+  ansible.builtin.set_fact:
     _t3: "{{ _t1 | combine(_t2) | combine(_t0) }}"
 
+- name: identify gcp_project from credentials + randomly choose a region's zone
+  ansible.builtin.set_fact:
+    azure_resource_group: "{{ lookup('env','AZURE_RESOURCE_GROUP') }}"
 
-
-
+# list all VMs using the count_tag as a filter
 - name: init empty string var
   set_fact:
     _tags: ""
@@ -46,7 +49,7 @@
 - name: get list of current VMs via the count_tag
   shell: |
     az vm list \
-    --resource-group "{{ _grp.region | default(_infra_item.region) }}" \
+    --resource-group "{{ azure_resource_group }}" \
     --show-details \ 
     --query "[?tags.count_tag=='{{ _count_tag }}'].{delete_tag:tags.delete_tag}" \
     --output json
@@ -62,22 +65,28 @@
   shell: |
     az vm create \
     --name "{{ _count_tag }}-{{ _now }}-{{ item }}" \ 
-    --resource-group "{{ _grp.region | default(_infra_item.region) }}" \
-    --image "{{ (_image not in images[_infra_item.cloud]) | ternary(_image, images[_infra_item.cloud][_image].id ) }}" \
-    --admin-username "{{ (_image not in images[_infra_item.cloud]) | ternary(_user, images[_infra_item.cloud][_image].user ) }}" \
+    --resource-group "{{ azure_resource_group }}" \
+    --location "{{ _grp.region | default(_infra_item.region) }}" \
+    --image "{{ _image }}" \
+    --admin-username "{{ _user }}" \
     --tags count_tag={{ _count_tag }} delete_tag={{ _count_tag }}-{{ _now }}-{{ item }} {{ _tags[:-1] }} \
-    --os-disk-size-gb "{{ _grp.volumes.os.size | default(_infra_item.volumes.os.size) | default(volume_type[_infra_item.cloud].size) }}" \
+    --os-disk-size-gb "{{ _grp.volumes.os.size | default(_infra_item.volumes.os.size) | default(volume_type[_cloud].size) }}" \
     --vnet-name "{{ _grp.vpc_id | default(_infra_item.vpc_id) }}" \
     --subnet "{{ _grp.subnet | default(_infra_item.subnet) }}" \
     --ssh-key-values "{{ _grp.public_key_id | default(_infra_item.public_key_id) }}" \
-    --size "{{ (_instance_type != '') | ternary(_instance_type, instances[_infra_item.cloud][_instance.gpu|default(0)|int][_instance.cpu|default('default')|int][_instance.mem|default('default')|int] ) }}" \
+    --size "{{ (_instance_type != '') | ternary(_instance_type, instances[_cloud][_instance.gpu|default(0)|int][_instance.cpu|default(0)|int][_instance.mem|default(0)|int] ) }}" \
     --nsg "{{ _grp.security_group | default(_infra_item.security_group) }}" \
-    --custom-data {{ _grp.bootstrap[_infra_item.cloud] | default(_infra_item.bootstrap[_infra_item.cloud]) | default('') | quote }} \
+    --custom-data "{{ _grp.bootstrap[_cloud] | default(_infra_item.bootstrap[_cloud]) | default('') }}" \
     --public-ip-address-dns-name "{{ _count_tag }}-{{ _now }}-{{ item }}" \
     {{ ((_grp.volumes.data is defined and _grp.volumes.data|length >0 ) or (_infra_item.volumes.data is defined and _infra_item.volumes.data|length > 0 )) | ternary('--data-disk-sizes-gb', '') }} {{ _grp.volumes.data | default(_infra_item.volumes.data) | default([{'size':''}]) | json_query('[*].size') | join(' ')  }} \
+    --data-disk-delete-option delete \
+    --storage-sku os=Standard_LRS {{ ((_grp.volumes.data is defined and _grp.volumes.data|length >0 ) or (_infra_item.volumes.data is defined and _infra_item.volumes.data|length > 0 )) | ternary('0=Standard_LRS', '') }} \
+    --nic-delete-option delete \
+    --os-disk-delete-option delete \
+    --public-ip-sku Standard \
     --no-wait
-  when: _vms_count|int < _grp.exact_count|int
-  loop: "{{ range(_grp.exact_count|int - _vms_count|int ) | list }}"
+  when: _vms_count|int < _grp.exact_count|default(_infra_item.exact_count)|int
+  loop: "{{ range(_grp.exact_count|default(_infra_item.exact_count)|int - _vms_count|int ) | list }}"
 
   # use the delete_tag to fetch all resources to be deleted
 - name: delete Azure VM and dependant resources - NIC, Disks, IPs
@@ -87,7 +96,7 @@
     --tag delete_tag={{ _vms_names[idx] }} \
     --query "[].id" \
     --output tsv)
-  when: _grp.exact_count|int < _vms_count|int
-  loop: "{{ range(_vms_count|int - _grp.exact_count|int) | list }}"
+  when: _grp.exact_count|default(_infra_item.exact_count)|int < _vms_count|int
+  loop: "{{ range(_vms_count|int - _grp.exact_count|default(_infra_item.exact_count)|int) | list }}"
   loop_control:
     index_var: idx

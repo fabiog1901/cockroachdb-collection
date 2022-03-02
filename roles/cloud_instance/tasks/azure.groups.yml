@@ -2,9 +2,9 @@
 - name: get list of current VMs via the count_tag
   shell: |
     az vm list \
-    --resource-group "{{ _grp.region | default(_infra_item.region) }}" \
+    --resource-group "{{ azure_resource_group }}" \
     --show-details \ 
-    --query "[?tags.count_tag=='{{ _count_tag }}']" \
+    --query "[?tags.deployment_id=='{{ deployment_id }}']" \
     --output json
   register: _vms
 
@@ -20,13 +20,14 @@
 - name: add instances to inventory groups
   add_host:
     name: "{{ item.publicIps }}"
-    groups: "{{ item.tags.ansible_inv_groups.split(';') + [item.tags.ansible_cluster_name] }}"
-    extra_vars: "{{ item.tags.ansible_extra_vars | from_json }}"
+    groups: "{{ item.tags.ansible_inv_groups.split(',') + [item.tags.ansible_cluster_name] }}"
     cluster_name: "{{ item.tags.ansible_cluster_name }}"
-    cloud_provider: azure
-    #ansible_private_key_file: '{{ _infra_item.private_key_path }}'
+    cloud: azure
+    region: "{{ item.tags.region }}"
+    zone: "{{ item.tags.zone }}"
     ansible_user: "{{ item.tags.ansible_user }}"
-    #
+    extra_vars: "{{ item.tags.extra_vars | from_json }}"
+    
     public_hostname: "{{ item.fqdns }}"
     public_ip: "{{ item.publicIps }}"
     private_hostname: "{{ item.privateIps }}"
