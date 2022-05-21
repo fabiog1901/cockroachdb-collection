@@ -1,6 +1,7 @@
 import logging
 import os
 import threading
+import boto3
 
 import google.cloud.compute_v1
 from ansible.module_utils.basic import AnsibleModule
@@ -8,7 +9,11 @@ from ansible.module_utils.basic import AnsibleModule
 # setup global logging
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
-
+logging.getLogger('boto3').setLevel(logging.CRITICAL)
+logging.getLogger('botocore').setLevel(logging.CRITICAL)
+logging.getLogger('boto').setLevel(logging.CRITICAL)
+logging.getLogger('s3transfer').setLevel(logging.CRITICAL)
+logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 
 ANSIBLE_METADATA = {
     'metadata_version': '1.1',
@@ -68,6 +73,23 @@ meta:
 '''
 
 
+class ActionModule(ActionBase):
+    def run(self, tmp=None, task_vars=None):
+        super(ActionModule, self).run(tmp, task_vars)
+        module_args = self._task.args.copy()
+        module_return = self._execute_module(module_name='ec2',
+                                             module_args=module_args,
+                                             task_vars=task_vars, tmp=tmp)
+        print(module_return)
+        ret = dict()
+        if not module_return.get('failed'):
+            for key, value in module_return['ansible_facts'].items():
+                print(key, value)
+
+        return dict(ansible_facts=dict(ret))
+    
+    
+
 class CloudInstance:
 
     def __init__(self, deployment_id: str, present: bool, deployment: list, defaults: dict):
@@ -85,24 +107,16 @@ class CloudInstance:
             'AZURE_RESOURCE_GROUP', None)
         self.new_instances = []
         self.instances = []
-        self.tobedeleted = []
 
     def run(self):
 
-        logging.debug(f"Fetching all instances from all clouds using deployment_id = '{self.deployment_id}'")
+        # fetch all running instances for the deployment_id and append them to the 'instances' list
+        logging.debug(f"Fetching all instances with deployment_id = '{self.deployment_id}'")
         self.fetch_all(self.deployment_id, self.gcp_project, self.azure_resource_group)
 
-        logging.debug("Listing each instance in the current deployment:")
+        logging.debug("Listing pre-existing instances:")
         for x in self.instances:
             logging.debug(f'\t{x}')
-
-
-        if not self.present:
-            logging.debug(
-                "Destroying all instances in the current deployment...")
-            self.destroy_all(self.instances, self.gcp_project,
-                             self.azure_resource_group)
-            return []
 
         # 3. build the deployment: a list of dict with these attributes:
         #    - public_ip
@@ -119,10 +133,13 @@ class CloudInstance:
         #    - ansible_user
         #    - extra_vars
         #    - the unique cloud identifier (eg aws instance_id, for easy deleting operations)
-        logging.debug("Building deployment...")
-        self.build_deployment()
+        
+        # instances of the new deployment will go into the 'new_instances' list
+        if self.present:
+            logging.debug("Building deployment...")
+            self.build_deployment()
 
-        logging.debug("Removing orphaned instances...")
+        logging.debug("Removing instances...")
         self.destroy_all(self.instances, self.gcp_project,
                          self.azure_resource_group)
 
@@ -161,22 +178,64 @@ class CloudInstance:
             self.threads.append(thread)
 
         # wait for all threads to complete
-        for t in self.threads:
-            t.join()
+        for x in self.threads:
+            x.join()
+    
+    def fetch_aws_instances_per_region(self, region, deployment_id):
+        logging.debug(f'Fetching AWS instances from {region}')
+        instances = []
+        
+        ec2 = boto3.client('ec2', region_name=region)
+        response = ec2.describe_instances(Filters=[{'Name': 'tag:deployment_id', 'Values': [deployment_id] }])
+        
+        for x in response['Reservations']:
+            for i in x['Instances']:
+                
+                tags = {}
+                for t in i['Tags']:
+                    tags[t['Key']] = t['Value']
+                    
+                instances.append({
+                    # cloud instance id, useful for deleting
+                    "id": i['InstanceId'],
 
+                    # locality
+                    "cloud": "aws",
+                    "region": i['Placement']['AvailabilityZone'][:-1],
+                    "zone": i['Placement']['AvailabilityZone'][-1],
+
+                    # addresses
+                    "public_ip": i['PublicIpAddress'],
+                    "public_hostname": i['PublicDnsName'],
+                    "private_ip": i['PrivateIpAddress'],
+                    "private_hostname": i['PrivateDnsName'],
+
+                    # tags
+                    "ansible_user": tags['ansible_user'],
+                    "inventory_groups": tags['inventory_groups'],
+                    "cluster_name": tags['cluster_name'],
+                    "group_name": tags['group_name'],
+                    "extra_vars": tags['extra_vars']
+                }) 
+
+        self.update_current_deployment(instances)
+            
     def fetch_aws_instances(self, deployment_id: str):
-        logging.debug(f"Fetching AWS instances for deployment_id = {deployment_id}")
-        i = [
-            {
-                "cloud": "aws",
-                "cluster_name": "fabiodemo-0",
-                "group_name": "crdbawssssss",
-                "id": 3
-            }
-        ]
+        logging.debug(f"Fetching AWS instances for deployment_id={deployment_id}")
+        
+        threads: list [threading.Thread] = []
+        
+        ec2 = boto3.client('ec2')
+        regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
 
-        self.update_current_deployment(i)
-
+        for region in regions:
+            thread = threading.Thread(target=self.fetch_aws_instances_per_region, args=(region, deployment_id), daemon=True)
+            thread.start()
+            threads.append(thread)
+        
+        for x in threads:
+            x.join()
+            
     def fetch_gcp_instances(self, deployment_id: str, project_id: str):
         """
         Return a dictionary of all instances present in a project, grouped by their zone.
@@ -187,7 +246,7 @@ class CloudInstance:
             A dictionary with zone names as keys (in form of "zones/{zone_name}") and
             iterable collections of Instance objects as values.
         """
-        logging.debug(f"Fetching GCP instances for deployment_id = {deployment_id}")
+        logging.debug(f"Fetching GCP instances for deployment_id={deployment_id}")
         
         instance_client = google.cloud.compute_v1.InstancesClient()
         # Use the `max_results` parameter to limit the number of results that the API returns per response page.
@@ -229,8 +288,14 @@ class CloudInstance:
         self.update_current_deployment(instances)
         
     def fetch_azure_instances(self, deployment_id: str):
-        logging.debug(f"Fetching Azure instances for deployment_id = {deployment_id}")
+        logging.debug(f"Fetching Azure instances for deployment_id={deployment_id}")
         instances = [
+            {
+                "cloud": "azure",
+                "cluster_name": "demo-0",
+                "group_name": "crdb",
+                "id": 1
+            },
             {
                 "cloud": "azure",
                 "cluster_name": "demo-0",
@@ -269,33 +334,27 @@ class CloudInstance:
             },
             {
                 "cloud": "azure",
-                "cluster_name": "demo-0",
+                "cluster_name": "demo-1",
                 "group_name": "crdb",
-                "id": 8
+                "id": 101
             },
             {
                 "cloud": "azure",
                 "cluster_name": "demo-1",
                 "group_name": "crdb",
-                "id": 99
-            },
-            {
-                "cloud": "azure",
-                "cluster_name": "demo-1",
-                "group_name": "crdb",
-                "id": 100
+                "id": 102
             },
             {
                 "cloud": "azure",
                 "cluster_name": "dem-1",
                 "group_name": "crdb",
-                "id": 991
+                "id": 201
             },
             {
                 "cloud": "azure",
                 "cluster_name": "dem-1",
                 "group_name": "crdb",
-                "id": 1001
+                "id": 202
             }
         ]
         
@@ -303,10 +362,14 @@ class CloudInstance:
     
     def update_current_deployment(self, instances: list):
         with self._lock:
-            logging.debug("Updating instances list")
+            logging.debug("Updating pre-existing instances list")
             self.instances += instances
 
-
+    def update_new_deployment(self, instances: list):
+        with self._lock:
+            logging.debug("Updating new instances list")
+            self.new_instances += instances
+            
     # 4. loop through the 'deployment' struct
     #    - through each cluster and copies
     #    - through each group within each cluster
@@ -339,7 +402,7 @@ class CloudInstance:
     #        for each instance that's too many, start a thread to destroy the instance
     #        return current_deployment minus what was distroyed
     def build_group(self, cluster_name, group: dict):
-        # get current cluster, if exists
+        # get all instances in the current group
         current_group = []
         for x in self.instances[:]:
             if x['cluster_name'] == cluster_name and x['group_name'] == group['group_name']:
@@ -355,65 +418,120 @@ class CloudInstance:
 
         # CASE 2: ADD instances
         elif current_count < new_exact_count:
+            target = {
+                'aws': self.provision_aws_vm,
+                'gcp': self.provision_gcp_vm,
+                'azure': self.provision_azure_vm
+            }
+            
             for x in range(new_exact_count - current_count):
-                if group['cloud'] == 'aws':
-                    l = self.provision_aws_vm(cluster_name, group, x)
-                elif group['cloud'] == 'azure':
-                    l = self.provision_azure_vm(cluster_name, group, x)
-                elif group['cloud'] == 'gcp':
-                    l = self.provision_gcp_vm(cluster_name, group, x)
-                else:
-                    raise ValueError("Unexpected cloud: %s" % (group['cloud']))
-
-                self.new_instances.append(l)
+                thread = threading.Thread(target=target[group['cloud']], args=(cluster_name, group, x))
+                thread.start()
+                self.threads.append(thread)
 
         # CASE 3: REMOVE instances
         else:
             for x in range(current_count - new_exact_count):
-                if group['cloud'] == 'aws':
-                    self.destroy_aws_vm(current_group[-1])
-                elif group['cloud'] == 'azure':
-                    self.destroy_azure_vm(current_group[-1])
-                elif group['cloud'] == 'gcp':
-                    self.destroy_gcp_vm(current_group[-1])
-                else:
-                    raise ValueError("Unexpected cloud: %s" % (group['cloud']))
-
-                current_group.pop(-1)
+                self.instances.append(current_group.pop(-1))
 
             self.new_instances += current_group
 
     def provision_aws_vm(self, cluster_name: str, group: dict, x: int):
-        print('++aws', cluster_name, group['group_name'], x)
-        return {"cloud": "aws", "cluster_name": cluster_name, "group_name": group['group_name'], "id": x}
+        logging.debug('++aws %s %s %s' % (cluster_name, group['group_name'], x))
+        
+        
+        gpu = str(group['instance'].get('gpu', "0"))
+        cpu = str(group['instance'].get('cpu', "0"))
+        mem = str(group['instance'].get('mem', "0"))
+        cloud = group['cloud']
+        instance_type = self.defaults['instances'][cloud][gpu][cpu][mem]
+        volume_defaults = self.defaults['volume_type'][cloud]
+        
+        os_disk_type = volume_defaults[group['volumes']['os']['type']]
+
+        data_disk_type = [ volume_defaults[x['type']] for x in group['volumes']['data'] ]
+        print(data_disk_type)
+        
+        ec2 = boto3.client('ec2', region_name=group['region'])
+        response = ec2.run_instances(
+            DryRun=True,
+            BlockDeviceMappings=[
+                {
+                    'DeviceName': '/dev/sdh',
+                    'Ebs': {
+                        'VolumeSize': 100,
+                    },
+                },
+            ],
+            ImageId=group['image'],
+            InstanceType=instance_type,
+            KeyName=group['public_key_id'],
+            MaxCount=group['exact_count'],
+            MinCount=group['exact_count'],
+            SecurityGroupIds=[
+                group['security_group'],
+            ],
+            SubnetId=group['subnet'],
+            UserData=group['user_data'],
+            IamInstanceProfile={
+                'Name': group['role']
+            },
+            NetworkInterfaces=[{
+                "DeviceIndex": 0,
+                "AssociatePublicIpAddress": group['public_ip']
+            }],
+            TagSpecifications=[
+                {
+                    'ResourceType': 'instance',
+                    'Tags': [
+                        {
+                            'Key': 'Purpose',
+                            'Value': 'test',
+                        },
+                    ],
+                },
+            ],
+        )
+        
+        self.update_new_deployment([{"cloud": "aws", "cluster_name": cluster_name, "group_name": group['group_name'], "id": x}])
 
     def provision_gcp_vm(self, cluster_name: str, group: dict, x: int):
-        print('++gcp', cluster_name, group['group_name'], x)
-        return {"cloud": "gcp", "cluster_name": cluster_name, "group_name": group['group_name'], "id": x}
+        logging.debug('++gcp %s %s %s' % (cluster_name, group, x))
+        self.update_new_deployment([{"cloud": "gcp", "cluster_name": cluster_name, "group_name": group['group_name'], "id": x}])
 
     def provision_azure_vm(self, cluster_name: str, group: dict, x: int):
-        print('++azure', cluster_name, group['group_name'], x)
-        return {"cloud": "azure", "cluster_name": cluster_name, "group_name": group['group_name'], "id": x}
+        logging.debug('++azure %s %s %s' % (cluster_name, group, x))
+        self.update_new_deployment([{"cloud": "azure", "cluster_name": cluster_name, "group_name": group['group_name'], "id": x}])
 
     def destroy_all(self, instances: list, gcp_project: str, azure_resource_group: str):
+        target = {
+            'aws': self.destroy_aws_vm,
+            'gcp': self.destroy_gcp_vm,
+            'azure': self.destroy_azure_vm
+        }
+        
         for x in instances:
-            if x['cloud'] == 'aws':
-                self.destroy_aws_vm(x)
-            elif x['cloud'] == 'gcp':
-                self.destroy_gcp_vm(x)
-            elif x['cloud'] == 'azure':
-                self.destroy_azure_vm(x)
-            else:
-                raise ValueError("Unexpected cloud: %s" % (x['cloud']))
+            thread = threading.Thread(target=target[x['cloud']], args=(x, ))
+            thread.start()
+            self.threads.append(thread)
 
+            
     def destroy_aws_vm(self, instance: dict):
-        print('--aws', instance)
+        ec2 = boto3.client('ec2', region_name=instance['region'])
+        response = ec2.terminate_instances(InstanceIds=[instance['id']], )   
 
+        status = response['TerminatingInstances'][0]['CurrentState']['Name']
+        
+        if status in ['shutting-down', 'terminated']:
+            logging.debug(f'Deleted AWS instance: {instance}')
+        else:
+            logging.error('Unexpected response: {response}}')
+            
     def destroy_gcp_vm(self, instance: dict):
-        print('--gcp', instance)
+        logging.debug(f'--gcp {instance}')
 
     def destroy_azure_vm(self, instance: dict):
-        print('--azure', instance)
+        logging.debug(f'--azure {instance}')
 
     # UTIL METHODS
     # =========================================================================
