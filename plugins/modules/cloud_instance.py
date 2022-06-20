@@ -212,37 +212,39 @@ class CloudInstance:
         return instances
 
     def parse_gcp_query(self, instance: google.cloud.compute_v1.types.compute.Instance, region, zone):
-        
+
         tags = {}
         for x in instance.metadata.items:
             tags[x.key] = x.value
-        
-        ip = instance.network_interfaces[0].access_configs[0].nat_i_p.split('.')
-        public_dns = '.'.join([ip[3], ip[2], ip[1], ip[0], 'bc.googleusercontent.com'])
-        
+
+        ip = instance.network_interfaces[0].access_configs[0].nat_i_p.split(
+            '.')
+        public_dns = '.'.join(
+            [ip[3], ip[2], ip[1], ip[0], 'bc.googleusercontent.com'])
+
         return {
-                # cloud instance id, useful for deleting
-                "id": instance.name,
+            # cloud instance id, useful for deleting
+            "id": instance.name,
 
-                # locality
-                "cloud": "gcp",
-                "region": region,
-                "zone": zone,
+            # locality
+            "cloud": "gcp",
+            "region": region,
+            "zone": zone,
 
-                # addresses
-                "public_ip": instance.network_interfaces[0].access_configs[0].nat_i_p,
-                "public_hostname": public_dns,
-                "private_ip": instance.network_interfaces[0].network_i_p,
-                "private_hostname": f"{instance.name}.c.cea-team.internal",
+            # addresses
+            "public_ip": instance.network_interfaces[0].access_configs[0].nat_i_p,
+            "public_hostname": public_dns,
+            "private_ip": instance.network_interfaces[0].network_i_p,
+            "private_hostname": f"{instance.name}.c.cea-team.internal",
 
-                # tags
-                "ansible_user": tags['ansible_user'],
-                "inventory_groups": json.loads(tags['inventory_groups']),
-                "cluster_name": tags['cluster_name'],
-                "group_name": tags['group_name'],
-                "extra_vars": json.loads(tags.get('extra_vars', '{}'))
-            }
-    
+            # tags
+            "ansible_user": tags['ansible_user'],
+            "inventory_groups": json.loads(tags['inventory_groups']),
+            "cluster_name": tags['cluster_name'],
+            "group_name": tags['group_name'],
+            "extra_vars": json.loads(tags.get('extra_vars', '{}'))
+        }
+
     def fetch_aws_instances_per_region(self, region, deployment_id):
         logging.debug(f'Fetching AWS instances from {region}')
 
@@ -300,7 +302,8 @@ class CloudInstance:
         for zone, response in agg_list:
             if response.instances:
                 for x in response.instances:
-                    instances.append(self.parse_gcp_query(x, zone[6:-2], zone[-1]))
+                    instances.append(self.parse_gcp_query(
+                        x, zone[6:-2], zone[-1]))
 
         self.update_current_deployment(instances)
 
@@ -446,7 +449,7 @@ class CloudInstance:
             KeyName=group['public_key_id'],
             MaxCount=1,
             MinCount=1,
-            UserData=group['user_data'],
+            UserData=group.get('user_data', ''),
             IamInstanceProfile={
                 'Name': group['role']
             },
@@ -476,8 +479,9 @@ class CloudInstance:
         self.update_new_deployment(self.parse_aws_query(response))
 
     def provision_gcp_vm(self, cluster_name: str, group: dict, x: int):
-        logging.debug('++gcp %s %s %s' % (cluster_name, group['group_name'], x))
-        
+        logging.debug('++gcp %s %s %s' %
+                      (cluster_name, group['group_name'], x))
+
         gcpzone = '-'.join([group['region'], group['zone']])
         instance_name = '-'.join(['i'] + str(uuid.uuid4()).split('-')[3:])
         instance_client = google.cloud.compute_v1.InstancesClient()
@@ -491,67 +495,71 @@ class CloudInstance:
                 'standard_hdd': 'pd-standard',
                 'premium_hdd': 'pd-standard'
             }.get(x, 'pd-standard')
-        
+
         vols = []
-        
+
         boot_disk = google.cloud.compute_v1.AttachedDisk()
         boot_disk.boot = True
         initialize_params = google.cloud.compute_v1.AttachedDiskInitializeParams()
         initialize_params.source_image = group['image']
-        initialize_params.disk_size_gb = int(group['volumes']['os'].get('size', 30))
-        initialize_params.disk_type = 'zones/%s/diskTypes/%s' % (gcpzone, get_type(group['volumes']['os'].get('type', 'standard_ssd')))
+        initialize_params.disk_size_gb = int(
+            group['volumes']['os'].get('size', 30))
+        initialize_params.disk_type = 'zones/%s/diskTypes/%s' % (
+            gcpzone, get_type(group['volumes']['os'].get('type', 'standard_ssd')))
         boot_disk.initialize_params = initialize_params
-        boot_disk.auto_delete = group['volumes']['os'].get('delete_on_termination', True)
+        boot_disk.auto_delete = group['volumes']['os'].get(
+            'delete_on_termination', True)
         vols.append(boot_disk)
-        
+
         for i, x in enumerate(group['volumes']['data']):
             disk = google.cloud.compute_v1.AttachedDisk()
             init_params = google.cloud.compute_v1.AttachedDiskInitializeParams()
-            init_params.disk_type = 'zones/%s/diskTypes/%s' % (gcpzone, get_type(x.get('type', 'standard_ssd')))
+            init_params.disk_type = 'zones/%s/diskTypes/%s' % (
+                gcpzone, get_type(x.get('type', 'standard_ssd')))
             init_params.disk_size_gb = int(x.get('size', 100))
             disk.initialize_params = init_params
             disk.auto_delete = x.get('delete_on_termination', True)
             disk.device_name = f'disk-{i}'
             vols.append(disk)
-        
+
         # tags
         tags = google.cloud.compute_v1.types.Metadata()
         item = google.cloud.compute_v1.types.Items()
         l = []
-        
+
         for k, v in group.get('tags', {}).items():
             item = google.cloud.compute_v1.types.Items()
             item.key = k
             item.value = v
             l.append(item)
-        
+
         item = google.cloud.compute_v1.types.Items()
         item.key = 'ansible_user'
         item.value = group['user']
         l.append(item)
-        
+
         item = google.cloud.compute_v1.types.Items()
         item.key = 'cluster_name'
         item.value = cluster_name
         l.append(item)
-        
+
         item = google.cloud.compute_v1.types.Items()
         item.key = 'group_name'
         item.value = group['group_name']
         l.append(item)
-        
+
         item = google.cloud.compute_v1.types.Items()
         item.key = 'inventory_groups'
         item.value = json.dumps(group['inventory_groups'])
         l.append(item)
-        
+
         item = google.cloud.compute_v1.types.Items()
         item.key = 'extra_vars'
         item.value = json.dumps(group.get('extra_vars', {}))
         l.append(item)
-        
+
         tags.items = l
-        
+
         # Use the network interface provided in the network_link argument.
         network_interface = google.cloud.compute_v1.NetworkInterface()
         network_interface.name = group['subnet']
@@ -571,32 +579,32 @@ class CloudInstance:
         instance.machine_type = f'zones/{gcpzone}/machineTypes/{self.get_instance_type(group)}'
         instance.metadata = tags
         instance.labels = {'deployment_id': self.deployment_id}
-        
+
         t = google.cloud.compute_v1.Tags()
         t.items = group['security_groups']
         instance.tags = t
 
-        instance.network_interfaces = [network_interface]     
+        instance.network_interfaces = [network_interface]
 
         # Wait for the create operation to complete.
         operation = instance_client.insert(
-            instance_resource = instance,
+            instance_resource=instance,
             project=self.gcp_project,
             zone=gcpzone)
-            
+
         self.wait_for_extended_operation(operation)
 
         logging.debug(f"GCP instance created: {instance.name}")
 
         # fetch details
         instance = instance_client.get(
-            project = self.gcp_project,
-            zone = gcpzone,
-            instance = instance_name)
-
+            project=self.gcp_project,
+            zone=gcpzone,
+            instance=instance_name)
 
         # add the instance to the list
-        self.update_new_deployment([self.parse_gcp_query(instance, group['region'], group['zone'])])
+        self.update_new_deployment(
+            [self.parse_gcp_query(instance, group['region'], group['zone'])])
 
     def provision_azure_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++azure %s %s %s' % (cluster_name, group, x))
@@ -640,7 +648,7 @@ class CloudInstance:
             zone: name of the zone you want to use. For example: “us-west3-b”
             machine_name: name of the machine you want to delete.
         """
-        
+
         instance_client = google.cloud.compute_v1.InstancesClient()
 
         operation = instance_client.delete(
@@ -663,31 +671,36 @@ class CloudInstance:
         mem = str(group['instance'].get('mem', "0"))
         cloud = group['cloud']
         return self.defaults['instances'][cloud][gpu][cpu][mem]
-        
+
     def merge_dicts(self, parent: dict, child: dict):
+
+        merged = {}
+        for k, v in child.items():
+            merged[k] = v
+
         for k, v in parent.items():
-            if not k in child:
-                child[k] = v
+            if not k in merged:
+                merged[k] = v
 
         # merge the items in tags, child overrides parent
         tags_dict = parent.get('tags', {})
         for k, v in child.get('tags', {}).items():
             tags_dict[k] = v
 
-        child['tags'] = tags_dict
+        merged['tags'] = tags_dict
 
         # aggregate the inventory groups
-        child['inventory_groups'] = parent.get(
+        merged['inventory_groups'] = parent.get(
             'inventory_groups', []) + child.get('inventory_groups', [])
 
         # aggregate the security groups
-        child['security_groups'] = parent.get(
+        merged['security_groups'] = parent.get(
             'security_groups', []) + child.get('security_groups', [])
 
         # aggregate the volumes
         # TODO
 
-        return child
+        return merged
 
     def wait_for_extended_operation(self, operation: ExtendedOperation):
 
