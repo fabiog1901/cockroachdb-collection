@@ -11,10 +11,11 @@ import google.cloud.compute_v1.types
 from google.api_core.extended_operation import ExtendedOperation
 
 from ansible.module_utils.basic import AnsibleModule
-from importlib_metadata import metadata
+
 
 # setup global logging
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(filename="/tmp/cloud_instance.log",
+                    level=logging.DEBUG,
                     format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
@@ -63,8 +64,8 @@ EXAMPLES = '''
 - cloud_instance:
     state: present
     deployment:
-      - 
-      - 
+      -
+      -
 
 '''
 
@@ -92,23 +93,27 @@ class CloudInstance:
         self.threads: list[threading.Thread] = []
         self._lock = threading.Lock()
 
+        self.changed: bool = False
+
         self.gcp_project = os.environ.get('GCP_PROJECT', None)
         self.azure_resource_group = os.environ.get(
             'AZURE_RESOURCE_GROUP', None)
         self.new_instances = []
         self.instances = []
+        self.errors: list = []
 
     def run(self):
 
         # fetch all running instances for the deployment_id and append them to the 'instances' list
-        logging.debug(
+        logging.info(
             f"Fetching all instances with deployment_id = '{self.deployment_id}'")
         self.fetch_all(self.deployment_id, self.gcp_project,
                        self.azure_resource_group)
 
-        logging.debug("Listing pre-existing instances:")
-        for x in self.instances:
-            logging.debug(f'\t{x}')
+        if self.instances:
+            logging.debug("Listing pre-existing instances:")
+            for x in self.instances:
+                logging.debug(f'\t{x}')
 
         # 3. build the deployment: a list of dict with these attributes:
         #    - public_ip
@@ -128,24 +133,29 @@ class CloudInstance:
 
         # instances of the new deployment will go into the 'new_instances' list
         if self.present:
-            logging.debug("Building deployment...")
+            logging.info("Building deployment...")
             self.build_deployment()
 
-        logging.debug("Removing instances...")
-        self.destroy_all(self.instances, self.gcp_project,
-                         self.azure_resource_group)
-        logging.debug("Removed all instances marked for deletion")
+        if self.instances:
+            logging.info("Removing instances...")
+            self.destroy_all(self.instances, self.gcp_project,
+                            self.azure_resource_group)
+            logging.info("Removed all instances marked for deletion")
 
-        logging.debug("Waiting for all operation threads to complete")
+        logging.info("Waiting for all operation threads to complete")
         for x in self.threads:
             x.join()
-        logging.debug("All operation threads have completed")
+        logging.info("All operation threads have completed")
+
+        if self.errors:
+            logging.error(str(self.errors))
+            raise ValueError(str(self.errors))
 
         logging.debug("Returning new deployment list to client")
-        return self.new_instances
+        return self.new_instances, self.changed
 
     def fetch_all(self, deployment_id: str, gcp_project: str, azure_resource_group: str):
-        """For each public cloud, fetch all instances 
+        """For each public cloud, fetch all instances
         with the given deployment_id and return a clean list of instances
 
         Args:
@@ -302,8 +312,9 @@ class CloudInstance:
         for zone, response in agg_list:
             if response.instances:
                 for x in response.instances:
-                    instances.append(self.parse_gcp_query(
-                        x, zone[6:-2], zone[-1]))
+                    if x.status in ('PROVISIONING', 'STAGING', 'RUNNING'):
+                        instances.append(self.parse_gcp_query(
+                            x, zone[6:-2], zone[-1]))
 
         self.update_current_deployment(instances)
 
@@ -324,10 +335,16 @@ class CloudInstance:
             logging.debug("Updating new instances list")
             self.new_instances += instances
 
-    # 4. loop through the 'deployment' struct
-    #    - through each cluster and copies
-    #    - through each group within each cluster
+    def log_error(self, error: str):
+        with self._lock:
+            logging.debug("Updating errors list")
+            self.errors += [error]
+
     def build_deployment(self):
+        # 4. loop through the 'deployment' struct
+        #    - through each cluster and copies
+        #    - through each group within each cluster
+
         # loop through each cluster item in the deployment list
         for cluster in self.deployment:
 
@@ -344,22 +361,26 @@ class CloudInstance:
         for group in cluster.get('groups', []):
             self.build_group(cluster_name, self.merge_dicts(cluster, group))
 
-    # 5. for each group, compare what is in 'deployment' to what is in 'current_deployment':
-    #     case NO DIFFERENCE
-    #       return the details in current_deployment
-    #
-    #     case TOO FEW
-    #       for each exact count, start a thread to create the requested instance
-    #       return current_deployment + the details of the newly created instances
-    #
-    #     case TOO MANY
-    #        for each instance that's too many, start a thread to destroy the instance
-    #        return current_deployment minus what was distroyed
     def build_group(self, cluster_name, group: dict):
+        # 5. for each group, compare what is in 'deployment' to what is in 'current_deployment':
+        #     case NO DIFFERENCE
+        #       return the details in current_deployment
+        #
+        #     case TOO FEW
+        #       for each exact count, start a thread to create the requested instance
+        #       return current_deployment + the details of the newly created instances
+        #
+        #     case TOO MANY
+        #        for each instance that's too many, start a thread to destroy the instance
+        #        return current_deployment minus what was distroyed
+
         # get all instances in the current group
         current_group = []
         for x in self.instances[:]:
-            if x['cluster_name'] == cluster_name and x['group_name'] == group['group_name']:
+            if x['cluster_name'] == cluster_name \
+                    and x['group_name'] == group['group_name'] \
+                    and x['region'] == group['region'] \
+                    and x['zone'] == group['zone']:
                 current_group.append(x)
                 self.instances.remove(x)
 
@@ -372,6 +393,7 @@ class CloudInstance:
 
         # CASE 2: ADD instances
         elif current_count < new_exact_count:
+            self.changed = True
             target = {
                 'aws': self.provision_aws_vm,
                 'gcp': self.provision_gcp_vm,
@@ -386,6 +408,7 @@ class CloudInstance:
 
         # CASE 3: REMOVE instances
         else:
+            self.changed = True
             for x in range(current_count - new_exact_count):
                 self.instances.append(current_group.pop(-1))
 
@@ -393,8 +416,7 @@ class CloudInstance:
 
     def provision_aws_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++aws %s %s %s' %
-                      (cluster_name, group['group_name'], x))
-
+                      (cluster_name, group['subnet'], x))
         # volumes
         def get_type(x):
             return {
@@ -436,47 +458,53 @@ class CloudInstance:
         tags.append({'Key': 'cluster_name', 'Value': cluster_name})
         tags.append({'Key': 'group_name', 'Value': group['group_name']})
         tags.append({'Key': 'inventory_groups',
-                    'Value': str(group['inventory_groups'])})
+                    'Value': str(group['inventory_groups'] + [cluster_name])})
         tags.append({'Key': 'extra_vars', 'Value': str(
             group.get('extra_vars', {}))})
 
+        if group.get('role', None):
+            role = {'Name': group['role']}
+        else:
+            role = {}
         ec2 = boto3.client('ec2', region_name=group['region'])
-        response = ec2.run_instances(
-            DryRun=False,
-            BlockDeviceMappings=bdm,
-            ImageId=group['image'],
-            InstanceType=self.get_instance_type(group),
-            KeyName=group['public_key_id'],
-            MaxCount=1,
-            MinCount=1,
-            UserData=group.get('user_data', ''),
-            IamInstanceProfile={
-                'Name': group['role']
-            },
-            NetworkInterfaces=[{
-                "Groups": group['security_groups'],
-                "DeviceIndex": 0,
-                "SubnetId": group['subnet'],
-                "AssociatePublicIpAddress": group['public_ip']
-            }],
-            TagSpecifications=[
-                {
-                    'ResourceType': 'instance',
-                    'Tags': tags,
-                },
-            ],
-        )
+        try:
+            response = ec2.run_instances(
+                DryRun=False,
+                BlockDeviceMappings=bdm,
+                ImageId=group['image'],
+                InstanceType=self.get_instance_type(group),
+                KeyName=group['public_key_id'],
+                MaxCount=1,
+                MinCount=1,
+                UserData=group.get('user_data', ''),
+                IamInstanceProfile=role,
+                NetworkInterfaces=[{
+                    "Groups": group['security_groups'],
+                    "DeviceIndex": 0,
+                    "SubnetId": group['subnet'],
+                    "AssociatePublicIpAddress": group['public_ip']
+                }],
+                TagSpecifications=[
+                    {
+                        'ResourceType': 'instance',
+                        'Tags': tags,
+                    },
+                ],
+            )
 
-        # wait until instance is running
-        waiter = ec2.get_waiter('instance_running')
-        waiter.wait(InstanceIds=[response['Instances'][0]['InstanceId']])
+            # wait until instance is running
+            waiter = ec2.get_waiter('instance_running')
+            waiter.wait(InstanceIds=[response['Instances'][0]['InstanceId']])
 
-        # fetch details about the newly created instance
-        response = ec2.describe_instances(
-            InstanceIds=[response['Instances'][0]['InstanceId']])
+            # fetch details about the newly created instance
+            response = ec2.describe_instances(
+                InstanceIds=[response['Instances'][0]['InstanceId']])
 
-        # add the instance to the list
-        self.update_new_deployment(self.parse_aws_query(response))
+            # add the instance to the list
+            self.update_new_deployment(self.parse_aws_query(response))
+        except Exception as e:
+            logging.error(e)
+            self.log_error(e)
 
     def provision_gcp_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++gcp %s %s %s' %
@@ -514,14 +542,24 @@ class CloudInstance:
         for i, x in enumerate(group['volumes']['data']):
             disk = google.cloud.compute_v1.AttachedDisk()
             init_params = google.cloud.compute_v1.AttachedDiskInitializeParams()
+            init_params.disk_size_gb = int(x.get('size', 100))
+            
+            # local-ssd peculiarities
+            if get_type(x.get('type', 'standard_ssd')) == 'local-ssd':
+                disk.type = "SCRATCH"
+                disk.interface = "NVME"
+                del init_params.disk_size_gb    
+            
             init_params.disk_type = 'zones/%s/diskTypes/%s' % (
                 gcpzone, get_type(x.get('type', 'standard_ssd')))
-            init_params.disk_size_gb = int(x.get('size', 100))
+            
+            
             disk.initialize_params = init_params
             disk.auto_delete = x.get('delete_on_termination', True)
             disk.device_name = f'disk-{i}'
+            
             vols.append(disk)
-
+        
         # tags
         tags = google.cloud.compute_v1.types.Metadata()
         item = google.cloud.compute_v1.types.Items()
@@ -587,25 +625,30 @@ class CloudInstance:
         instance.network_interfaces = [network_interface]
 
         # Wait for the create operation to complete.
-        operation = instance_client.insert(
-            instance_resource=instance,
-            project=self.gcp_project,
-            zone=gcpzone)
+        try:
+            operation = instance_client.insert(
+                instance_resource=instance,
+                project=self.gcp_project,
+                zone=gcpzone)
 
-        self.wait_for_extended_operation(operation)
+            self.wait_for_extended_operation(operation)
 
-        logging.debug(f"GCP instance created: {instance.name}")
+            logging.debug(f"GCP instance created: {instance.name}")
 
-        # fetch details
-        instance = instance_client.get(
-            project=self.gcp_project,
-            zone=gcpzone,
-            instance=instance_name)
+            # fetch details
+            instance = instance_client.get(
+                project=self.gcp_project,
+                zone=gcpzone,
+                instance=instance_name)
 
-        # add the instance to the list
-        self.update_new_deployment(
-            [self.parse_gcp_query(instance, group['region'], group['zone'])])
-
+            # add the instance to the list
+            self.update_new_deployment(
+                [self.parse_gcp_query(instance, group['region'], group['zone'])])
+        
+        except Exception as e:
+            logging.error(e)
+            self.log_error(e)
+            
     def provision_azure_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++azure %s %s %s' % (cluster_name, group, x))
         instance = ''
@@ -620,6 +663,7 @@ class CloudInstance:
         }
 
         for x in instances:
+            self.changed = True
             thread = threading.Thread(target=target[x['cloud']], args=(x, ))
             thread.start()
             self.threads.append(thread)
@@ -666,9 +710,9 @@ class CloudInstance:
     # =========================================================================
     def get_instance_type(self, group):
         # instance type
-        gpu = str(group['instance'].get('gpu', "0"))
-        cpu = str(group['instance'].get('cpu', "0"))
-        mem = str(group['instance'].get('mem', "0"))
+        gpu = str(group['instance'].get('gpu', '0'))
+        cpu = str(group['instance'].get('cpu', '0'))
+        mem = str(group['instance'].get('mem', '0'))
         cloud = group['cloud']
         return self.defaults['instances'][cloud][gpu][cpu][mem]
 
@@ -697,6 +741,9 @@ class CloudInstance:
         merged['security_groups'] = parent.get(
             'security_groups', []) + child.get('security_groups', [])
 
+        # group_name
+        merged.setdefault('group_name', merged['inventory_groups'][0])
+            
         # aggregate the volumes
         # TODO
 
@@ -725,26 +772,25 @@ def main():
         supports_check_mode=False,
     )
 
+    instances: list = []
+
     try:
-        ci = CloudInstance(module.params['deployment_id'],
-                           True if module.params['state'] == 'present' else False,
-                           module.params['deployment'],
-                           module.params['defaults'])
-
-        g = ci.run()
-
-        logging.debug("Deployment instances list:")
-        for x in g:
-            logging.debug(f'\t{x}')
-
-        # Outputs
-        changed: bool = False
-        out: dict = {}
-
-        module.exit_json(changed=changed, out=out)
+        instances, changed = CloudInstance(
+            module.params['deployment_id'],
+            True if module.params['state'] == 'present' else False,
+            module.params['deployment'],
+            module.params['defaults']
+        ).run()
 
     except Exception as e:
-        module.fail_json(msg=e)
+        module.fail_json(msg=str(e))
+
+    logging.debug("Deployment instances list:")
+    for x in instances:
+        logging.debug(f'\t{x}')
+
+    # Outputs
+    module.exit_json(changed=changed, out=instances)
 
 
 if __name__ == '__main__':
