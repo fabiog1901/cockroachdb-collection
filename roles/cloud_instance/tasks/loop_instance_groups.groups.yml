@@ -1,7 +1,0 @@
----
-- name: Loop through _infra_item.instance_groups
-  include_tasks: "{{ _grp.cloud | default(_infra_item.cloud) }}.groups.yml"
-  loop: "{{ _infra_item.instance_groups }}"
-  loop_control:
-    loop_var: _grp
-

@@ -4,22 +4,227 @@
   connection: local
   gather_facts: no
   become: no
-  collections: fabiog1901.cockroachdb
-  tasks:       
+  tasks:
     - name: ensure presence of instances and Ansible inventory
-      include_role:
-        # accept var 'infra'
-        name: cloud_instance
+      fabiog1901.cockroachdb.cloud_instance:
+        state: "{{ state }}"
+        deployment_id: "{{ deployment_id }}"
+        deployment: "{{ infra }}"
+        defaults:
+          instances:
+            aws:
+              "0":
+                "0":
+                  "0": m6i.4xlarge
+                "1":
+                  "0": t2.small
+                  "1": t2.micro
+                  "2": t2.small
+                  high_cpu: t2.micro
+                  high_mem: t2.small
+                  "0.5": t2.nano
+                "2":
+                  "0": m6i.large
+                  "1": t3.micro
+                  "2": t3.small
+                  "4": c5.large
+                  "8": m6i.large
+                  "16": r5.large
+                  high_cpu: c5.large
+                  high_mem: r5.large
+                "4":
+                  "0": m6i.xlarge
+                  "8": c5.xlarge
+                  "16": m6i.xlarge
+                  "32": r5.xlarge
+                  high_cpu: c5.xlarge
+                  high_mem: r5.xlarge
+                "8":
+                  "0": m6i.2xlarge
+                  "16": c5.2xlarge
+                  "32": m6i.2xlarge
+                  "64": r5.2xlarge
+                  high_cpu: c5.2xlarge
+                  high_mem: r5.2xlarge
+                "16":
+                  "0": m6i.4xlarge
+                  "32": c5.4xlarge
+                  "64": m6i.4xlarge
+                  "128": r5.4xlarge
+                  high_cpu: c5.4xlarge
+                  high_mem: r5.4xlarge
+                "32":
+                  "0": m6i.8xlarge
+                  "128": m6i.8xlarge
+                  "256": r5.8xlarge
+                  high_cpu: c5.9xlarge
+                  high_mem: r5.8xlarge
+              "1":
+                "0":
+                  "0": p3.2xlarge
+                "8":
+                  "0": p3.2xlarge
+              "4":
+                "0":
+                  "0": p3.8xlarge
+                "32":
+                  "0": p3.8xlarge
+            azure:
+              "0":
+                "1":
+                  "1": Standard_B1s
+                  "2": Standard_B1ms
+                  high_cpu: Standard_B1ls
+                  default: Standard_B1ms
+                  high_mem: Standard_B1ms
+                  "0.5": Standard_B1ls
+                "2":
+                  "4": Standard_F2s_v2
+                  "8": Standard_D2s_v3
+                  "16": Standard_E2s_v3
+                  high_cpu: Standard_F2s_v2
+                  default: Standard_D2s_v3
+                  high_mem: Standard_E2s_v3
+                "4":
+                  "8": Standard_F4s_v2
+                  "16": Standard_D4s_v3
+                  "32": Standard_E4s_v3
+                  high_cpu: Standard_F4s_v2
+                  default: Standard_D4s_v3
+                  high_mem: Standard_E4s_v3
+                "8":
+                  "16": Standard_F8s_v2
+                  "32": Standard_D8s_v3
+                  "64": Standard_E8s_v3
+                  high_cpu: Standard_F8s_v2
+                  default: Standard_D8s_v3
+                  high_mem: Standard_E8s_v3
+                "16":
+                  "32": Standard_F16s_v2
+                  "64": Standard_D16s_v3
+                  "128": Standard_E16s_v3
+                  high_cpu: Standard_F16s_v2
+                  default: Standard_D16s_v3
+                  high_mem: Standard_E16s_v3
+                "32":
+                  "64": Standard_F32s_v2
+                  "128": Standard_D32s_v3
+                  "256": Standard_E32s_v3
+                  high_cpu: Standard_F32s_v2
+                  default: Standard_D32s_v3
+                  high_mem: Standard_E32s_v3
+                default:
+                  default: Standard_D16s_v3
+              "1":
+                "6":
+                  default: Standard_NC6
+                default: Standard_NC6
+              "4":
+                "24":
+                  default: Standard_NC24r
+                default: Standard_NC24r
+            gcp:
+              "0":
+                "0":
+                  "0": n2-standard-16
+                "1":
+                  "0": g1-small
+                  "1": f1-micro
+                  "2": g1-small
+                  high_cpu: g1-small
+                  high_mem: g1-small
+                "2":
+                  "0": n2-standard-2
+                  "2": n2-highcpu-2
+                  "4": n2-standard-2
+                  "8": n2-standard-2
+                  "16": n2-highmem-2
+                  high_cpu: n2-highcpu-2
+                  high_mem: n2-highmem-2
+                "4":
+                  "0": n2-standard-4
+                  "4": n2-highcpu-4
+                  "8": n2-standard-4
+                  "16": n2-standard-4
+                  "32": n2-highmem-4
+                  high_cpu: n2-highcpu-4
+                  high_mem: n2-highmem-4
+                "8":
+                  "0": n2-standard-8
+                  "8": n2-highcpu-8
+                  "16": n2-standard-8
+                  "32": n2-standard-8
+                  "64": n2-highmem-8
+                  high_cpu: n2-highcpu-8
+                  high_mem: n2-highmem-8
+                "16":
+                  "0": n2-standard-16
+                  "16": n2-highcpu-16
+                  "32": n2-standard-16
+                  "64": n2-standard-16
+                  "128": n2-highmem-16
+                  high_cpu: n2-highcpu-16
+                  high_mem: n2-highmem-16
+                "32":
+                  "0": n2-standard-32
+                  "32": n2-highcpu-32
+                  "64": n2-standard-32
+                  "128": n2-standard-32
+                  "256": n2-highmem-32
+                  high_cpu: n2-highcpu-32
+                  high_mem: n2-highmem-32
+      register: instances
+    
+    - name: quit if state is absent
+      fail:
+        msg: "state is absent, will quit here!"
+      when: state == 'absent'
+    
+    - name: Wait for SSH to come up
+      wait_for:
+        host: "{{ item.public_ip }}"
+        port: 22
+        timeout: 180
+        sleep: 5
+        state: started
+      loop: "{{ instances.out }}"
 
+    - name: add instances to inventory groups
+      add_host:
+        # id
+        name: "{{ item.public_ip }}"
+        id: "{{ item.id }}"
+        
+        # locality
+        cloud: "{{ item.cloud }}"
+        region: "{{ item.region }}"
+        zone: "{{ item.zone }}"
+        
+        # addresses
+        public_hostname: "{{ item.public_hostname }}"
+        public_ip: "{{ item.public_ip }}"
+        private_hostname: "{{ item.private_hostname }}"
+        private_ip: "{{ item.private_ip }}"
+
+        # tags
+        ansible_user: "{{ item.ansible_user }}"
+        groups: "{{ item.inventory_groups }}"
+        cluster_name: "{{ item.cluster_name }}"
+        group_name: "{{ item.group_name }}"
+        extra_vars: "{{ item.extra_vars }}"
+
+      loop: "{{ instances.out }}"
+
+    - template:
+        src: inventory.j2
+        dest: "{{ deployment_id }}.ini"
+    
     - name: print Ansible inventory for reference
       debug:
         msg:
           - "PRINT GROUPS MAGIC VARIABLE"
           - "{{ groups }}"
 
-    - template:
-        src: inventory.j2
-        dest: inventory.ini
-
   tags:
     - cloud_instance
+

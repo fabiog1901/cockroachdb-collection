@@ -588,7 +588,7 @@ class CloudInstance:
 
         item = google.cloud.compute_v1.types.Items()
         item.key = 'inventory_groups'
-        item.value = json.dumps(group['inventory_groups'])
+        item.value = json.dumps(group['inventory_groups'] + [cluster_name])
         l.append(item)
 
         item = google.cloud.compute_v1.types.Items()
@@ -700,7 +700,7 @@ class CloudInstance:
             zone='-'.join([instance['region'], instance['zone']]),
             instance=instance['id']
         )
-        self.wait_for_extended_operation(operation)
+        # self.wait_for_extended_operation(operation)
         logging.debug(f"Deleting GCP instance: {instance}")
 
     def destroy_azure_vm(self, instance: dict):

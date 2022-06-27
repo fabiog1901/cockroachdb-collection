@@ -14,23 +14,23 @@ regions:
     defaults: &aws
       <<: *regions
       cloud: aws
-    us_west_1:
-      defaults: &aws_us_west_1
+    us_west_2:
+      defaults: &aws_us_west_2
         <<: *aws
-        region: us-west-1
+        region: us-west-2
         vpc_id: vpc-0a0.....
         security_group: sg-084d....
         image: ami-0ebef2838fb2605b7
       a: &aws_us_west_1a
-        <<: *aws_us_west_1
+        <<: *aws_us_west_2
         zone: a
         subnet: subnet-072....
       b: &aws_us_west_1b
-        <<: *aws_us_west_1
+        <<: *aws_us_west_2
         zone: b
         subnet: subnet-0cd...
       c: &aws_us_west_1c
-        <<: *aws_us_west_1
+        <<: *aws_us_west_2
         zone: c
         subnet: subnet-0cd...
   gcp:
@@ -126,7 +126,9 @@ regions:
 # VM INSTANCES
 infra:
   - cluster_name: demo
-    instance_groups:
+    # group_name: krb5_server
+    # copies: 1
+    groups:
       - <<: *gcp_us_central1_c
         inventory_groups:
           - krb5_server
@@ -143,6 +145,8 @@ infra:
           Name: "{{ deployment_id }}-kdc"
 
   - cluster_name: demo
+    # group_name: krb5_client
+    # copies: 1
     inventory_groups:
       - app
       - krb5_client
@@ -157,13 +161,15 @@ infra:
       data: []
     tags:
       Name: "{{ deployment_id }}-app"
-    instance_groups:
+    groups:
       - <<: *gcp_us_east4_a
-      - <<: *aws_us_west_1a
+      - <<: *aws_us_west_2a
       - <<: *gcp_europe_west2_a
       # - <<: *azure_westeurope_a
 
   - cluster_name: demo
+    # group_name: ha_proxy
+    # copies: 1
     inventory_groups:
       - haproxy
     exact_count: 1
@@ -177,9 +183,9 @@ infra:
       data: []
     tags:
       Name: "{{ deployment_id }}-haproxy"
-    instance_groups:
+    groups:
       - <<: *gcp_us_east4_a
-      - <<: *aws_us_west_1a
+      - <<: *aws_us_west_2a
       - <<: *gcp_europe_west2_a
       # - <<: *azure_westeurope_c
 
@@ -200,13 +206,13 @@ infra:
           delete_on_termination: true
     tags:
       Name: "{{ deployment_id }}-cockroach"
-    instance_groups:
+    groups:
       - <<: *gcp_us_east4_a
       - <<: *gcp_us_east4_b
       - <<: *gcp_us_east4_c
-      - <<: *aws_us_west_1a
-      - <<: *aws_us_west_1b
-      - <<: *aws_us_west_1c
+      - <<: *aws_us_west_2a
+      - <<: *aws_us_west_2b
+      - <<: *aws_us_west_2c
       - <<: *gcp_europe_west2_a
       - <<: *gcp_europe_west2_b
       - <<: *gcp_europe_west2_c
@@ -247,7 +253,7 @@ cockroachdb_krb: yes
 cockroachdb_krbsrvname: cockroach
 cockroachdb_certificates_dir: *certs
 cockroachdb_certificates_clients: *crdb_client_certs
-cockroachdb_version: v21.1.5
+cockroachdb_version: latest
 cockroachdb_join:
   - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].public_ip }}"
   - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].public_ip }}"
