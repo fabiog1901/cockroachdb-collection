@@ -1,16 +1,25 @@
+import json
 import logging
 import os
 import threading
-import boto3
 import uuid
-import json
 
+# ANSIBLE
+from ansible.module_utils.basic import AnsibleModule
 
+# AWS
+import boto3
+
+# GCP
 import google.cloud.compute_v1
 import google.cloud.compute_v1.types
 from google.api_core.extended_operation import ExtendedOperation
 
-from ansible.module_utils.basic import AnsibleModule
+# AZURE
+from azure.identity import AzureCliCredential
+from azure.mgmt.resource import ResourceManagementClient
+from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.compute import ComputeManagementClient
 
 
 # setup global logging
@@ -22,6 +31,12 @@ logging.getLogger('botocore').setLevel(logging.CRITICAL)
 logging.getLogger('boto').setLevel(logging.CRITICAL)
 logging.getLogger('s3transfer').setLevel(logging.CRITICAL)
 logging.getLogger('urllib3').setLevel(logging.CRITICAL)
+logging.getLogger('azure.mgmt.compute').setLevel(logging.CRITICAL)
+logging.getLogger('azure.mgmt.resource').setLevel(logging.CRITICAL)
+logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(
+    logging.CRITICAL)
+logging.getLogger('azure.identity._internal.decorators').setLevel(
+    logging.CRITICAL)
 
 ANSIBLE_METADATA = {
     'metadata_version': '1.1',
@@ -98,6 +113,8 @@ class CloudInstance:
         self.gcp_project = os.environ.get('GCP_PROJECT', None)
         self.azure_resource_group = os.environ.get(
             'AZURE_RESOURCE_GROUP', None)
+        self.azure_subscription_id = os.environ["AZURE_SUBSCRIPTION_ID"]
+
         self.new_instances = []
         self.instances = []
         self.errors: list = []
@@ -107,8 +124,8 @@ class CloudInstance:
         # fetch all running instances for the deployment_id and append them to the 'instances' list
         logging.info(
             f"Fetching all instances with deployment_id = '{self.deployment_id}'")
-        self.fetch_all(self.deployment_id, self.gcp_project,
-                       self.azure_resource_group)
+        self.__fetch_all(self.deployment_id, self.gcp_project,
+                         self.azure_resource_group)
 
         if self.instances:
             logging.debug("Listing pre-existing instances:")
@@ -134,12 +151,12 @@ class CloudInstance:
         # instances of the new deployment will go into the 'new_instances' list
         if self.present:
             logging.info("Building deployment...")
-            self.build_deployment()
+            self.__build_deployment()
 
         if self.instances:
             logging.info("Removing instances...")
-            self.destroy_all(self.instances, self.gcp_project,
-                            self.azure_resource_group)
+            self.__destroy_all(self.instances, self.gcp_project,
+                               self.azure_resource_group)
             logging.info("Removed all instances marked for deletion")
 
         logging.info("Waiting for all operation threads to complete")
@@ -154,7 +171,7 @@ class CloudInstance:
         logging.debug("Returning new deployment list to client")
         return self.new_instances, self.changed
 
-    def fetch_all(self, deployment_id: str, gcp_project: str, azure_resource_group: str):
+    def __fetch_all(self, deployment_id: str, gcp_project: str, azure_resource_group: str):
         """For each public cloud, fetch all instances
         with the given deployment_id and return a clean list of instances
 
@@ -166,13 +183,13 @@ class CloudInstance:
         """
         # AWS
         thread = threading.Thread(
-            target=self.fetch_aws_instances, args=(self.deployment_id, ))
+            target=self.__fetch_aws_instances, args=(self.deployment_id, ))
         thread.start()
         self.threads.append(thread)
 
         # GCP
         if gcp_project:
-            thread = threading.Thread(target=self.fetch_gcp_instances, args=(
+            thread = threading.Thread(target=self.__fetch_gcp_instances, args=(
                 self.deployment_id, self.gcp_project))
             thread.start()
             self.threads.append(thread)
@@ -180,7 +197,7 @@ class CloudInstance:
         # AZURE
         if azure_resource_group:
             thread = threading.Thread(
-                target=self.fetch_azure_instances, args=(self.deployment_id, ))
+                target=self.__fetch_azure_instances, args=(self.deployment_id, ))
             thread.start()
             self.threads.append(thread)
 
@@ -188,7 +205,7 @@ class CloudInstance:
         for x in self.threads:
             x.join()
 
-    def parse_aws_query(self, response):
+    def __parse_aws_query(self, response):
         instances: list = []
 
         for x in response['Reservations']:
@@ -221,7 +238,7 @@ class CloudInstance:
                 })
         return instances
 
-    def parse_gcp_query(self, instance: google.cloud.compute_v1.types.compute.Instance, region, zone):
+    def __parse_gcp_query(self, instance: google.cloud.compute_v1.types.compute.Instance, region, zone):
 
         tags = {}
         for x in instance.metadata.items:
@@ -255,7 +272,31 @@ class CloudInstance:
             "extra_vars": json.loads(tags.get('extra_vars', '{}'))
         }
 
-    def fetch_aws_instances_per_region(self, region, deployment_id):
+    def __parse_azure_query(self, vm, private_ip, public_ip, public_hostname):
+        return [{
+            # cloud instance id, useful for deleting
+            "id": vm.name,
+
+            # locality
+            "cloud": "azure",
+            "region": vm.location,
+            "zone": 'default',
+
+            # addresses
+            "public_ip": public_ip,
+            "public_hostname": public_hostname,
+            "private_ip": private_ip,
+            "private_hostname": vm.name+'.internal.cloudapp.net',
+
+            # tags
+            "ansible_user": vm.tags['ansible_user'],
+            "inventory_groups": vm.tags['inventory_groups'],
+            "cluster_name": vm.tags['cluster_name'],
+            "group_name": vm.tags['group_name'],
+            "extra_vars": vm.tags['extra_vars']
+        }]
+
+    def __fetch_aws_instances_per_region(self, region, deployment_id):
         logging.debug(f'Fetching AWS instances from {region}')
 
         ec2 = boto3.client('ec2', region_name=region)
@@ -263,11 +304,11 @@ class CloudInstance:
             Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
                      {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
 
-        instances: list = self.parse_aws_query(response)
+        instances: list = self.__parse_aws_query(response)
 
-        self.update_current_deployment(instances)
+        self.__update_current_deployment(instances)
 
-    def fetch_aws_instances(self, deployment_id: str):
+    def __fetch_aws_instances(self, deployment_id: str):
         logging.debug(
             f"Fetching AWS instances for deployment_id={deployment_id}")
 
@@ -277,7 +318,7 @@ class CloudInstance:
         regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
 
         for region in regions:
-            thread = threading.Thread(target=self.fetch_aws_instances_per_region, args=(
+            thread = threading.Thread(target=self.__fetch_aws_instances_per_region, args=(
                 region, deployment_id), daemon=True)
             thread.start()
             threads.append(thread)
@@ -285,7 +326,7 @@ class CloudInstance:
         for x in threads:
             x.join()
 
-    def fetch_gcp_instances(self, deployment_id: str, project_id: str):
+    def __fetch_gcp_instances(self, deployment_id: str, project_id: str):
         """
         Return a dictionary of all instances present in a project, grouped by their zone.
 
@@ -313,34 +354,72 @@ class CloudInstance:
             if response.instances:
                 for x in response.instances:
                     if x.status in ('PROVISIONING', 'STAGING', 'RUNNING'):
-                        instances.append(self.parse_gcp_query(
+                        instances.append(self.__parse_gcp_query(
                             x, zone[6:-2], zone[-1]))
 
-        self.update_current_deployment(instances)
+        self.__update_current_deployment(instances)
 
-    def fetch_azure_instances(self, deployment_id: str):
+    def __fetch_azure_instances(self, deployment_id: str):
         logging.debug(
-            f"Fetching Azure instances for deployment_id={deployment_id}")
-        return
+            f"Fetching Azure instances for deployment_id = '{deployment_id}'")
 
-        self.update_current_deployment(instances)
+        threads: list[threading.Thread] = []    
+            
+        def get_instance_details(credential, vm):
+            client = ComputeManagementClient(
+                credential, self.azure_subscription_id)
+            netclient = NetworkManagementClient(
+                credential, self.azure_subscription_id)
+        
+            # check VM is in running state
+            statuses = client.virtual_machines.instance_view(
+                self.azure_resource_group, vm.name).statuses
+            status = len(statuses) >= 2 and statuses[1]
 
-    def update_current_deployment(self, instances: list):
+            if status and status.code == 'PowerState/running':
+                nic_id = vm.network_profile.network_interfaces[0].id
+                nic = netclient.network_interfaces.get(self.azure_resource_group, nic_id.split('/')[-1])
+                
+                private_ip = nic.ip_configurations[0].private_ip_address
+                pip = netclient.public_ip_addresses.get(
+                    self.azure_resource_group, 
+                    nic.ip_configurations[0].public_ip_address.name)
+                public_ip = pip.ip_address
+                public_hostname = ''
+                self.__update_current_deployment(self.__parse_azure_query(vm, private_ip, public_ip, public_hostname))
+
+        # Acquire a credential object using CLI-based authentication.
+        credential = AzureCliCredential()
+        client = ComputeManagementClient(
+                credential, self.azure_subscription_id)
+        
+        vm_list = client.virtual_machines.list(self.azure_resource_group)
+        for vm in vm_list:
+            if vm.tags.get('deployment_id', '') == deployment_id:
+                thread = threading.Thread(
+                    target=get_instance_details, args=(credential, vm), daemon=True)
+                thread.start()
+                threads.append(thread)
+
+        for x in threads:
+            x.join()
+
+    def __update_current_deployment(self, instances: list):
         with self._lock:
             logging.debug("Updating pre-existing instances list")
             self.instances += instances
 
-    def update_new_deployment(self, instances: list):
+    def __update_new_deployment(self, instances: list):
         with self._lock:
             logging.debug("Updating new instances list")
             self.new_instances += instances
 
-    def log_error(self, error: str):
+    def __log_error(self, error: str):
         with self._lock:
             logging.debug("Updating errors list")
-            self.errors += [error]
+            self.errors.append(error)
 
-    def build_deployment(self):
+    def __build_deployment(self):
         # 4. loop through the 'deployment' struct
         #    - through each cluster and copies
         #    - through each group within each cluster
@@ -352,16 +431,17 @@ class CloudInstance:
             # then, for each requested copy, add the index suffix
             cluster_name: str = cluster['cluster_name']
             for x in range(int(cluster.get('copies', 1))):
-                self.build_cluster(f'{cluster_name}-{x}', cluster)
+                self.__build_cluster(f'{cluster_name}-{x}', cluster)
 
-    def build_cluster(self, cluster_name: str, cluster: dict):
+    def __build_cluster(self, cluster_name: str, cluster: dict):
 
         # for each group in the cluster,
         # put all cluster defaults into the group
         for group in cluster.get('groups', []):
-            self.build_group(cluster_name, self.merge_dicts(cluster, group))
+            self.__build_group(
+                cluster_name, self.__merge_dicts(cluster, group))
 
-    def build_group(self, cluster_name, group: dict):
+    def __build_group(self, cluster_name, group: dict):
         # 5. for each group, compare what is in 'deployment' to what is in 'current_deployment':
         #     case NO DIFFERENCE
         #       return the details in current_deployment
@@ -395,9 +475,9 @@ class CloudInstance:
         elif current_count < new_exact_count:
             self.changed = True
             target = {
-                'aws': self.provision_aws_vm,
-                'gcp': self.provision_gcp_vm,
-                'azure': self.provision_azure_vm
+                'aws': self.__provision_aws_vm,
+                'gcp': self.__provision_gcp_vm,
+                'azure': self.__provision_azure_vm
             }
 
             for x in range(new_exact_count - current_count):
@@ -412,12 +492,13 @@ class CloudInstance:
             for x in range(current_count - new_exact_count):
                 self.instances.append(current_group.pop(-1))
 
-        self.update_new_deployment(current_group)
+        self.__update_new_deployment(current_group)
 
-    def provision_aws_vm(self, cluster_name: str, group: dict, x: int):
+    def __provision_aws_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++aws %s %s %s' %
                       (cluster_name, group['subnet'], x))
         # volumes
+
         def get_type(x):
             return {
                 'standard_ssd': 'gp3',
@@ -472,7 +553,7 @@ class CloudInstance:
                 DryRun=False,
                 BlockDeviceMappings=bdm,
                 ImageId=group['image'],
-                InstanceType=self.get_instance_type(group),
+                InstanceType=self.__get_instance_type(group),
                 KeyName=group['public_key_id'],
                 MaxCount=1,
                 MinCount=1,
@@ -501,12 +582,12 @@ class CloudInstance:
                 InstanceIds=[response['Instances'][0]['InstanceId']])
 
             # add the instance to the list
-            self.update_new_deployment(self.parse_aws_query(response))
+            self.__update_new_deployment(self.__parse_aws_query(response))
         except Exception as e:
             logging.error(e)
-            self.log_error(e)
+            self.__log_error(e)
 
-    def provision_gcp_vm(self, cluster_name: str, group: dict, x: int):
+    def __provision_gcp_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++gcp %s %s %s' %
                       (cluster_name, group['group_name'], x))
 
@@ -543,23 +624,22 @@ class CloudInstance:
             disk = google.cloud.compute_v1.AttachedDisk()
             init_params = google.cloud.compute_v1.AttachedDiskInitializeParams()
             init_params.disk_size_gb = int(x.get('size', 100))
-            
+
             # local-ssd peculiarities
             if get_type(x.get('type', 'standard_ssd')) == 'local-ssd':
                 disk.type = "SCRATCH"
                 disk.interface = "NVME"
-                del init_params.disk_size_gb    
-            
+                del init_params.disk_size_gb
+
             init_params.disk_type = 'zones/%s/diskTypes/%s' % (
                 gcpzone, get_type(x.get('type', 'standard_ssd')))
-            
-            
+
             disk.initialize_params = init_params
             disk.auto_delete = x.get('delete_on_termination', True)
             disk.device_name = f'disk-{i}'
-            
+
             vols.append(disk)
-        
+
         # tags
         tags = google.cloud.compute_v1.types.Metadata()
         item = google.cloud.compute_v1.types.Items()
@@ -614,7 +694,7 @@ class CloudInstance:
         instance = google.cloud.compute_v1.Instance()
         instance.name = instance_name
         instance.disks = vols
-        instance.machine_type = f'zones/{gcpzone}/machineTypes/{self.get_instance_type(group)}'
+        instance.machine_type = f'zones/{gcpzone}/machineTypes/{self.__get_instance_type(group)}'
         instance.metadata = tags
         instance.labels = {'deployment_id': self.deployment_id}
 
@@ -631,7 +711,7 @@ class CloudInstance:
                 project=self.gcp_project,
                 zone=gcpzone)
 
-            self.wait_for_extended_operation(operation)
+            self.__wait_for_extended_operation(operation)
 
             logging.debug(f"GCP instance created: {instance.name}")
 
@@ -642,24 +722,178 @@ class CloudInstance:
                 instance=instance_name)
 
             # add the instance to the list
-            self.update_new_deployment(
-                [self.parse_gcp_query(instance, group['region'], group['zone'])])
-        
+            self.__update_new_deployment(
+                [self.__parse_gcp_query(instance, group['region'], group['zone'])])
+
         except Exception as e:
             logging.error(e)
-            self.log_error(e)
-            
-    def provision_azure_vm(self, cluster_name: str, group: dict, x: int):
-        logging.debug('++azure %s %s %s' % (cluster_name, group, x))
-        instance = ''
-        # add the instance to the list
-        self.update_new_deployment(self.parse_azure_query(instance))
+            self.__log_error(e)
 
-    def destroy_all(self, instances: list, gcp_project: str, azure_resource_group: str):
+    def __provision_azure_vm(self, cluster_name: str, group: dict, x: int):
+        logging.debug('++azure %s %s %s' %
+                      (cluster_name, group['group_name'], x))
+        return
+        # Acquire a credential object using CLI-based authentication.
+        credential = AzureCliCredential()
+        client = ComputeManagementClient(
+            credential, self.azure_subscription_id)
+        network_client = NetworkManagementClient(
+            credential, self.azure_subscription_id)
+
+        prefix = '-'.join([self.deployment_id, cluster_name,
+                          group['group_name'], str(x)])
+
+        try:
+
+            # # Provision an IP address and wait for completion
+            # poller = network_client.public_ip_addresses.begin_create_or_update(
+            #     self.azure_resource_group,
+            #     prefix + '-ip',
+            #     {
+            #         "location": group['region'],
+            #         "sku": {"name": "Standard"},
+            #         "public_ip_allocation_method": "Static",
+            #         "public_ip_address_version": "IPV4"
+            #     }
+            # )
+
+            # ip_address_result = poller.result()
+
+            # # Provision the nic
+            # poller = network_client.network_interfaces.begin_create_or_update(
+            #     self.azure_resource_group,
+            #     prefix + '-nic',
+            #     {
+            #         "location": group['region'],
+            #         "network_security_group": {
+            #             "id": "/subscriptions/eebc0b2a-9ff2-499c-9e75-1a32e8fe13b3/resourceGroups/workshop/providers/Microsoft.Network/networkSecurityGroups/workshop-nsg"
+            #         },
+            #         "ip_configurations": [{
+            #             "name": prefix + '-nic',
+            #             "subnet": {"id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s" %
+            #                        (self.azure_subscription_id, self.azure_resource_group, group['vpc_id'], group['subnet'])},
+            #             "public_ip_address": {"id": ip_address_result.id}
+            #         }]
+            #     }
+            # )
+
+            # nic_result = poller.result()
+
+            # private_ip = nic_result.ip_configurations[0].private_ip_address
+            # private_hostname = 'az-' + '-'.join(private_ip.split('.'))
+
+            # Provision the virtual machine
+            publisher, offer, sku, version = group['image'].split(':')
+
+            poller = client.virtual_machines.begin_create_or_update(
+                self.azure_resource_group,
+                prefix + '-vm',
+                {
+                    "location": group['region'],
+                    "tags": {
+                        "deployment_id": self.deployment_id,
+                        "ansible_user": group['user'],
+                        "cluster_name": cluster_name,
+                        "group_name": group['group_name'],
+                        "inventory_groups": str(group['inventory_groups'] + [cluster_name]),
+                        "extra_vars": str(group.get('extra_vars', {}))
+                        # "az_ip_id": ip_address_result.id,
+                        # "az_nic_id": nic_result.id,
+                        # "az_public_ip": ip_address_result.ip_address,
+                        # "az_public_hostname": 'TODO',
+                        # "az_private_ip": private_ip,
+                        # "az_private_hostname": private_hostname+'.internal.cloudapp.net'
+                    },
+                    "storage_profile": {
+                        "osDisk": {
+                            "createOption": "fromImage",
+                            "managedDisk": {
+                                "storageAccountType": "Premium_LRS"
+                            },
+                            "deleteOption": "delete"
+                        },
+                        "image_reference": {
+                            "publisher": publisher,
+                            "offer": offer,
+                            "sku": sku,
+                            "version": version
+                        }
+                    },
+                    "hardware_profile": {
+                        "vm_size": self.__get_instance_type(group),
+                    },
+                    "os_profile": {
+                        "computer_name": prefix,
+                        "admin_username": group['user'],
+                        "linux_configuration": {
+                            "ssh": {
+                                "public_keys": [
+                                    {
+                                        "path": "/home/%s/.ssh/authorized_keys" % group['user'],
+                                        "key_data": group['public_key_id']
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "network_profile": {
+                        # "network_interfaces": [{
+                        #     "id": nic_result.id,
+                        #     "properties": {
+                        #         "deleteOption": "delete"
+                        #     }
+                        # }]
+                        "network_api_version": "2021-04-01",
+                        "network_interface_configurations": [
+                            {
+                                "name": prefix+'-nic',
+                                "delete_option": "delete",
+                                "network_security_group": {
+                                    "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s" %
+                                    (self.azure_subscription_id, self.azure_resource_group,
+                                     group['security_groups'][0])
+                                },
+                                "ip_configurations": [
+                                    {
+                                        "name": prefix+'-nic',
+                                        "subnet": {
+                                            "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s" %
+                                            (self.azure_subscription_id, self.azure_resource_group,
+                                             group['vpc_id'], group['subnet'])
+                                        },
+                                        "public_ip_address_configuration": {
+                                            "name": prefix+'-pip',
+                                            "sku": {
+                                                "name": "Standard",
+                                                "tier": "Regional"
+                                            },
+                                            "delete_option": "delete",
+                                            "public_ip_allocation_method": "static"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            )
+
+            instance = poller.result()
+
+            logging.debug(f"instance: {instance}")
+
+            # add the instance to the list
+            self.__update_new_deployment(self.__parse_azure_query(instance))
+
+        except Exception as e:
+            logging.error(e)
+            self.__log_error(e)
+
+    def __destroy_all(self, instances: list, gcp_project: str, azure_resource_group: str):
         target = {
-            'aws': self.destroy_aws_vm,
-            'gcp': self.destroy_gcp_vm,
-            'azure': self.destroy_azure_vm
+            'aws': self.__destroy_aws_vm,
+            'gcp': self.__destroy_gcp_vm,
+            'azure': self.__destroy_azure_vm
         }
 
         for x in instances:
@@ -668,7 +902,7 @@ class CloudInstance:
             thread.start()
             self.threads.append(thread)
 
-    def destroy_aws_vm(self, instance: dict):
+    def __destroy_aws_vm(self, instance: dict):
         logging.debug(f'--aws {instance}')
 
         ec2 = boto3.client('ec2', region_name=instance['region'])
@@ -682,7 +916,7 @@ class CloudInstance:
         else:
             logging.error('Unexpected response: {response}}')
 
-    def destroy_gcp_vm(self, instance: dict):
+    def __destroy_gcp_vm(self, instance: dict):
         logging.debug(f'--gcp {instance}')
         """
         Send an instance deletion request to the Compute Engine API and wait for it to complete.
@@ -700,15 +934,30 @@ class CloudInstance:
             zone='-'.join([instance['region'], instance['zone']]),
             instance=instance['id']
         )
-        # self.wait_for_extended_operation(operation)
+        # self.__wait_for_extended_operation(operation)
         logging.debug(f"Deleting GCP instance: {instance}")
 
-    def destroy_azure_vm(self, instance: dict):
+    def __destroy_azure_vm(self, instance: dict):
         logging.debug(f'--azure {instance}')
+
+        # Acquire a credential object using CLI-based authentication.
+        credential = AzureCliCredential()
+
+        client = ComputeManagementClient(
+            credential, self.azure_subscription_id)
+
+        try:
+            async_vm_delete = client.virtual_machines.begin_delete(
+                self.azure_resource_group, instance['id'])
+            async_vm_delete.wait()
+        except Exception as e:
+            logging.error(e)
+            self.__log_error(e)
 
     # UTIL METHODS
     # =========================================================================
-    def get_instance_type(self, group):
+
+    def __get_instance_type(self, group):
         # instance type
         gpu = str(group['instance'].get('gpu', '0'))
         cpu = str(group['instance'].get('cpu', '0'))
@@ -716,7 +965,7 @@ class CloudInstance:
         cloud = group['cloud']
         return self.defaults['instances'][cloud][gpu][cpu][mem]
 
-    def merge_dicts(self, parent: dict, child: dict):
+    def __merge_dicts(self, parent: dict, child: dict):
 
         merged = {}
         for k, v in child.items():
@@ -743,13 +992,13 @@ class CloudInstance:
 
         # group_name
         merged.setdefault('group_name', merged['inventory_groups'][0])
-            
+
         # aggregate the volumes
         # TODO
 
         return merged
 
-    def wait_for_extended_operation(self, operation: ExtendedOperation):
+    def __wait_for_extended_operation(self, operation: ExtendedOperation):
 
         result = operation.result(timeout=300)
 

@@ -18,9 +18,8 @@ Install the required Ansible Collections:
 ansible-galaxy collection install -r collections/ansible_collections/fabiog1901/cockroachdb/requirements.yml 
 
 # install required pip packages for AWS, GCP, Azure
-pip install -r ~/.ansible/collections/ansible_collections/amazon/aws/requirements.txt 
-pip install -r ~/.ansible/collections/ansible_collections/google/cloud/requirements.txt 
-pip install -r ~/.ansible/collections/ansible_collections/azure/azcollection/requirements-azure.txt
+pip install azure-mgmt-resource azure-mgmt-compute azure-mgmt-network azure-identity 
+
 ```
 
 Now, we copy the sample Playbooks in the **CockroachDB Collection** to our working directory
