@@ -296,17 +296,17 @@ class CloudInstance:
             "extra_vars": vm.tags['extra_vars']
         }]
 
-    def __fetch_aws_instances_per_region(self, region, deployment_id):
-        logging.debug(f'Fetching AWS instances from {region}')
+    # def __fetch_aws_instances_per_region(self, region, deployment_id):
+    #     logging.debug(f'Fetching AWS instances from {region}')
 
-        ec2 = boto3.client('ec2', region_name=region)
-        response = ec2.describe_instances(
-            Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
-                     {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
+    #     ec2 = boto3.client('ec2', region_name=region)
+    #     response = ec2.describe_instances(
+    #         Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
+    #                  {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
 
-        instances: list = self.__parse_aws_query(response)
+    #     instances: list = self.__parse_aws_query(response)
 
-        self.__update_current_deployment(instances)
+    #     self.__update_current_deployment(instances)
 
     def __fetch_aws_instances(self, deployment_id: str):
         logging.debug(
@@ -314,11 +314,23 @@ class CloudInstance:
 
         threads: list[threading.Thread] = []
 
+        def fetch_aws_instances_per_region(region, deployment_id):
+            logging.debug(f'Fetching AWS instances from {region}')
+
+            ec2 = boto3.client('ec2', region_name=region)
+            response = ec2.describe_instances(
+                Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
+                         {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
+
+            instances: list = self.__parse_aws_query(response)
+
+            self.__update_current_deployment(instances)
+
         ec2 = boto3.client('ec2')
         regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
 
         for region in regions:
-            thread = threading.Thread(target=self.__fetch_aws_instances_per_region, args=(
+            thread = threading.Thread(target=fetch_aws_instances_per_region, args=(
                 region, deployment_id), daemon=True)
             thread.start()
             threads.append(thread)
@@ -359,18 +371,14 @@ class CloudInstance:
 
         self.__update_current_deployment(instances)
 
-    def __fetch_azure_instances(self, deployment_id: str):
-        logging.debug(
-            f"Fetching Azure instances for deployment_id = '{deployment_id}'")
+    def __fetch_azure_instance_network_config(self, vm):
+        credential = AzureCliCredential()
+        client = ComputeManagementClient(
+            credential, self.azure_subscription_id)
+        netclient = NetworkManagementClient(
+            credential, self.azure_subscription_id)
 
-        threads: list[threading.Thread] = []    
-            
-        def get_instance_details(credential, vm):
-            client = ComputeManagementClient(
-                credential, self.azure_subscription_id)
-            netclient = NetworkManagementClient(
-                credential, self.azure_subscription_id)
-        
+        try:
             # check VM is in running state
             statuses = client.virtual_machines.instance_view(
                 self.azure_resource_group, vm.name).statuses
@@ -378,26 +386,45 @@ class CloudInstance:
 
             if status and status.code == 'PowerState/running':
                 nic_id = vm.network_profile.network_interfaces[0].id
-                nic = netclient.network_interfaces.get(self.azure_resource_group, nic_id.split('/')[-1])
-                
+                nic = netclient.network_interfaces.get(
+                    self.azure_resource_group, nic_id.split('/')[-1])
+
                 private_ip = nic.ip_configurations[0].private_ip_address
                 pip = netclient.public_ip_addresses.get(
-                    self.azure_resource_group, 
+                    self.azure_resource_group,
                     nic.ip_configurations[0].public_ip_address.name)
                 public_ip = pip.ip_address
                 public_hostname = ''
-                self.__update_current_deployment(self.__parse_azure_query(vm, private_ip, public_ip, public_hostname))
+
+            return private_ip, public_ip, public_hostname
+
+        except Exception as e:
+            logging.error(e)
+            self.__log_error(e)
+
+    def __get_azure_instance_details(self, vm):
+
+        self.__update_current_deployment(
+            self.__parse_azure_query(
+                vm, *self.__fetch_azure_instance_network_config(vm))
+        )
+
+    def __fetch_azure_instances(self, deployment_id: str):
+        logging.debug(
+            f"Fetching Azure instances for deployment_id = '{deployment_id}'")
+
+        threads: list[threading.Thread] = []
 
         # Acquire a credential object using CLI-based authentication.
         credential = AzureCliCredential()
         client = ComputeManagementClient(
-                credential, self.azure_subscription_id)
-        
+            credential, self.azure_subscription_id)
+
         vm_list = client.virtual_machines.list(self.azure_resource_group)
         for vm in vm_list:
             if vm.tags.get('deployment_id', '') == deployment_id:
                 thread = threading.Thread(
-                    target=get_instance_details, args=(credential, vm), daemon=True)
+                    target=self.__get_azure_instance_details, args=(vm,), daemon=True)
                 thread.start()
                 threads.append(thread)
 
@@ -732,58 +759,69 @@ class CloudInstance:
     def __provision_azure_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++azure %s %s %s' %
                       (cluster_name, group['group_name'], x))
-        return
+
         # Acquire a credential object using CLI-based authentication.
         credential = AzureCliCredential()
         client = ComputeManagementClient(
-            credential, self.azure_subscription_id)
-        network_client = NetworkManagementClient(
             credential, self.azure_subscription_id)
 
         prefix = '-'.join([self.deployment_id, cluster_name,
                           group['group_name'], str(x)])
 
+        def get_type(x):
+            return {
+                'standard_ssd': 'pd-balanced',
+                'premium_ssd': 'pd-ssd',
+                'local_ssd': 'local-ssd',
+                'standard_hdd': 'pd-standard',
+                'premium_hdd': 'pd-standard'
+            }.get(x, 'pd-standard')
+
+        vols = []
+
         try:
+            for i, x in enumerate(group['volumes']['data']):
+                poller = client.disks.begin_create_or_update(
+                    self.azure_resource_group,
+                    prefix + '-disk-' + str(i),
+                    {
+                        "location": group['region'],
+                        "sku": {
+                            "name": "Standard_LRS"
+                        },
+                        "disk_size_gb": int(x.get('size', 100)),
+                        "creation_data": {
+                            "create_option": "Empty"
+                        }
+                    }
 
-            # # Provision an IP address and wait for completion
-            # poller = network_client.public_ip_addresses.begin_create_or_update(
-            #     self.azure_resource_group,
-            #     prefix + '-ip',
-            #     {
-            #         "location": group['region'],
-            #         "sku": {"name": "Standard"},
-            #         "public_ip_allocation_method": "Static",
-            #         "public_ip_address_version": "IPV4"
-            #     }
-            # )
+                )
 
-            # ip_address_result = poller.result()
+                data_disk = poller.result()
 
-            # # Provision the nic
-            # poller = network_client.network_interfaces.begin_create_or_update(
-            #     self.azure_resource_group,
-            #     prefix + '-nic',
-            #     {
-            #         "location": group['region'],
-            #         "network_security_group": {
-            #             "id": "/subscriptions/eebc0b2a-9ff2-499c-9e75-1a32e8fe13b3/resourceGroups/workshop/providers/Microsoft.Network/networkSecurityGroups/workshop-nsg"
-            #         },
-            #         "ip_configurations": [{
-            #             "name": prefix + '-nic',
-            #             "subnet": {"id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s" %
-            #                        (self.azure_subscription_id, self.azure_resource_group, group['vpc_id'], group['subnet'])},
-            #             "public_ip_address": {"id": ip_address_result.id}
-            #         }]
-            #     }
-            # )
-
-            # nic_result = poller.result()
-
-            # private_ip = nic_result.ip_configurations[0].private_ip_address
-            # private_hostname = 'az-' + '-'.join(private_ip.split('.'))
+                disk = {
+                    "lun": i,
+                    "name": prefix + '-disk-' + str(i),
+                    "create_option": "Attach",
+                    "delete_option": "Delete" if x.get('delete_on_termination', True) else "Detach",
+                    "managed_disk": {
+                        "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/disks/%s" %
+                        (self.azure_subscription_id, self.azure_resource_group,
+                         prefix + '-disk-' + str(i))
+                    }
+                }
+                vols.append(disk)
 
             # Provision the virtual machine
             publisher, offer, sku, version = group['image'].split(':')
+
+            nsg = None
+            if group['security_group']:
+                nsg = {
+                    "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s" %
+                    (self.azure_subscription_id,
+                     self.azure_resource_group, group['security_group'])
+                }
 
             poller = client.virtual_machines.begin_create_or_update(
                 self.azure_resource_group,
@@ -797,12 +835,6 @@ class CloudInstance:
                         "group_name": group['group_name'],
                         "inventory_groups": str(group['inventory_groups'] + [cluster_name]),
                         "extra_vars": str(group.get('extra_vars', {}))
-                        # "az_ip_id": ip_address_result.id,
-                        # "az_nic_id": nic_result.id,
-                        # "az_public_ip": ip_address_result.ip_address,
-                        # "az_public_hostname": 'TODO',
-                        # "az_private_ip": private_ip,
-                        # "az_private_hostname": private_hostname+'.internal.cloudapp.net'
                     },
                     "storage_profile": {
                         "osDisk": {
@@ -817,7 +849,8 @@ class CloudInstance:
                             "offer": offer,
                             "sku": sku,
                             "version": version
-                        }
+                        },
+                        "data_disks": vols
                     },
                     "hardware_profile": {
                         "vm_size": self.__get_instance_type(group),
@@ -837,22 +870,12 @@ class CloudInstance:
                         }
                     },
                     "network_profile": {
-                        # "network_interfaces": [{
-                        #     "id": nic_result.id,
-                        #     "properties": {
-                        #         "deleteOption": "delete"
-                        #     }
-                        # }]
                         "network_api_version": "2021-04-01",
                         "network_interface_configurations": [
                             {
                                 "name": prefix+'-nic',
                                 "delete_option": "delete",
-                                "network_security_group": {
-                                    "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s" %
-                                    (self.azure_subscription_id, self.azure_resource_group,
-                                     group['security_groups'][0])
-                                },
+                                "network_security_group": nsg,
                                 "ip_configurations": [
                                     {
                                         "name": prefix+'-nic',
@@ -883,7 +906,12 @@ class CloudInstance:
             logging.debug(f"instance: {instance}")
 
             # add the instance to the list
-            self.__update_new_deployment(self.__parse_azure_query(instance))
+            self.__update_new_deployment(
+                self.__parse_azure_query(
+                    instance, *
+                    self.__fetch_azure_instance_network_config(instance)
+                )
+            )
 
         except Exception as e:
             logging.error(e)
@@ -903,7 +931,7 @@ class CloudInstance:
             self.threads.append(thread)
 
     def __destroy_aws_vm(self, instance: dict):
-        logging.debug(f'--aws {instance}')
+        logging.debug('--aws %s' % instance['id'])
 
         ec2 = boto3.client('ec2', region_name=instance['region'])
 
@@ -917,7 +945,7 @@ class CloudInstance:
             logging.error('Unexpected response: {response}}')
 
     def __destroy_gcp_vm(self, instance: dict):
-        logging.debug(f'--gcp {instance}')
+        logging.debug('--gcp %s' % instance['id'])
         """
         Send an instance deletion request to the Compute Engine API and wait for it to complete.
 
@@ -938,7 +966,7 @@ class CloudInstance:
         logging.debug(f"Deleting GCP instance: {instance}")
 
     def __destroy_azure_vm(self, instance: dict):
-        logging.debug(f'--azure {instance}')
+        logging.debug('--azure %s' % instance['id'])
 
         # Acquire a credential object using CLI-based authentication.
         credential = AzureCliCredential()
