@@ -780,7 +780,7 @@ class CloudInstance:
             }.get(x, 'pd-standard')
 
         vols = []
-        self.__log_error(str(vols)
+        self.__log_error(str(vols))
         i: int
         x: dict
         try:
