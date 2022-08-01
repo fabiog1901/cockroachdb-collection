@@ -770,7 +770,7 @@ class CloudInstance:
 
         def get_type(x):
             return {
-                'standard_ssd': 'pd-balanced',
+                'standard_ssd': 'Standard-LRS',
                 'premium_ssd': 'pd-ssd',
                 'local_ssd': 'local-ssd',
                 'standard_hdd': 'pd-standard',
@@ -778,7 +778,8 @@ class CloudInstance:
             }.get(x, 'pd-standard')
 
         vols = []
-
+        i: int
+        x: dict
         try:
             for i, x in enumerate(group['volumes']['data']):
                 poller = client.disks.begin_create_or_update(
@@ -787,7 +788,7 @@ class CloudInstance:
                     {
                         "location": group['region'],
                         "sku": {
-                            "name": "Standard_LRS"
+                            "name": get_type(x.get('type', 'standard_ssd'))
                         },
                         "disk_size_gb": int(x.get('size', 100)),
                         "creation_data": {
@@ -805,10 +806,9 @@ class CloudInstance:
                     "create_option": "Attach",
                     "delete_option": "Delete" if x.get('delete_on_termination', True) else "Detach",
                     "managed_disk": {
-                        "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/disks/%s" %
-                        (self.azure_subscription_id, self.azure_resource_group,
-                         prefix + '-disk-' + str(i))
+                        "id": data_disk.id
                     }
+                    
                 }
                 vols.append(disk)
 
@@ -915,6 +915,8 @@ class CloudInstance:
 
         except Exception as e:
             logging.error(e)
+            self.__log_error("HERE!!!!!!!!!")
+            
             self.__log_error(e)
 
     def __destroy_all(self, instances: list, gcp_project: str, azure_resource_group: str):
