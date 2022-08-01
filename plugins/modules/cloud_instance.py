@@ -44,6 +44,8 @@ ANSIBLE_METADATA = {
     'supported_by': 'community'
 }
 
+
+
 DOCUMENTATION = '''
 ---
 module: cloud_instance
