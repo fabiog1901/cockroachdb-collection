@@ -761,13 +761,12 @@ class CloudInstance:
     def __provision_azure_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++azure %s %s %s' %
                       (cluster_name, group['group_name'], x))
-        self.__log_error(self.azure_subscription_id)
+        self.__log_error(self.azure_resource_group)
         # Acquire a credential object using CLI-based authentication.
         credential = AzureCliCredential()
         client = ComputeManagementClient(
             credential, self.azure_subscription_id)
 
-        self.__log_error(str(credential))
         
         prefix = '-'.join([self.deployment_id, cluster_name,
                           group['group_name'], str(x)])
@@ -782,7 +781,6 @@ class CloudInstance:
             }.get(x, 'pd-standard')
 
         vols = []
-        self.__log_error(str(vols))
         i: int
         x: dict
         try:
