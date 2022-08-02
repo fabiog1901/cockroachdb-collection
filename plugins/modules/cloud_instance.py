@@ -16,8 +16,7 @@ import google.cloud.compute_v1.types
 from google.api_core.extended_operation import ExtendedOperation
 
 # AZURE
-from azure.identity import AzureCliCredential
-from azure.mgmt.resource import ResourceManagementClient
+from azure.identity import DefaultAzureCredential
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.compute import ComputeManagementClient
 
@@ -43,7 +42,6 @@ ANSIBLE_METADATA = {
     'status': ['preview'],
     'supported_by': 'community'
 }
-
 
 
 DOCUMENTATION = '''
@@ -374,13 +372,15 @@ class CloudInstance:
         self.__update_current_deployment(instances)
 
     def __fetch_azure_instance_network_config(self, vm):
-        credential = AzureCliCredential()
-        client = ComputeManagementClient(
-            credential, self.azure_subscription_id)
-        netclient = NetworkManagementClient(
-            credential, self.azure_subscription_id)
 
         try:
+            credential = DefaultAzureCredential()
+
+            client = ComputeManagementClient(
+                credential, self.azure_subscription_id)
+            netclient = NetworkManagementClient(
+                credential, self.azure_subscription_id)
+
             # check VM is in running state
             statuses = client.virtual_machines.instance_view(
                 self.azure_resource_group, vm.name).statuses
@@ -417,8 +417,14 @@ class CloudInstance:
 
         threads: list[threading.Thread] = []
 
-        # Acquire a credential object using CLI-based authentication.
-        credential = AzureCliCredential()
+        try:
+            # Acquire a credential object.
+            credential = DefaultAzureCredential()
+
+        except Exception as e:
+            logging.warning(e)
+            return
+
         client = ComputeManagementClient(
             credential, self.azure_subscription_id)
 
@@ -761,29 +767,29 @@ class CloudInstance:
     def __provision_azure_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++azure %s %s %s' %
                       (cluster_name, group['group_name'], x))
-        self.__log_error(self.azure_resource_group)
-        # Acquire a credential object using CLI-based authentication.
-        credential = AzureCliCredential()
-        client = ComputeManagementClient(
-            credential, self.azure_subscription_id)
 
-        
-        prefix = '-'.join([self.deployment_id, cluster_name,
-                          group['group_name'], str(x)])
-
-        def get_type(x):
-            return {
-                'standard_ssd': 'Standard-LRS',
-                'premium_ssd': 'pd-ssd',
-                'local_ssd': 'local-ssd',
-                'standard_hdd': 'pd-standard',
-                'premium_hdd': 'pd-standard'
-            }.get(x, 'pd-standard')
-
-        vols = []
-        i: int
-        x: dict
         try:
+            # Acquire a credential object using CLI-based authentication.
+            credential = DefaultAzureCredential()
+            client = ComputeManagementClient(
+                credential, self.azure_subscription_id)
+
+            prefix = '-'.join([self.deployment_id, cluster_name,
+                               group['group_name'], str(x)])
+
+            def get_type(x):
+                return {
+                    'standard_ssd': 'Standard-LRS',
+                    'premium_ssd': 'pd-ssd',
+                    'local_ssd': 'local-ssd',
+                    'standard_hdd': 'pd-standard',
+                    'premium_hdd': 'pd-standard'
+                }.get(x, 'pd-standard')
+
+            vols = []
+            i: int
+            x: dict
+
             for i, x in enumerate(group['volumes']['data']):
                 poller = client.disks.begin_create_or_update(
                     self.azure_resource_group,
@@ -811,7 +817,7 @@ class CloudInstance:
                     "managed_disk": {
                         "id": data_disk.id
                     }
-                    
+
                 }
                 vols.append(disk)
 
@@ -918,8 +924,6 @@ class CloudInstance:
 
         except Exception as e:
             logging.error(e)
-            self.__log_error("HERE!!!!!!!!!")
-            
             self.__log_error(e)
 
     def __destroy_all(self, instances: list, gcp_project: str, azure_resource_group: str):
@@ -974,12 +978,12 @@ class CloudInstance:
         logging.debug('--azure %s' % instance['id'])
 
         # Acquire a credential object using CLI-based authentication.
-        credential = AzureCliCredential()
-
-        client = ComputeManagementClient(
-            credential, self.azure_subscription_id)
-
         try:
+            credential = DefaultAzureCredential()
+
+            client = ComputeManagementClient(
+                credential, self.azure_subscription_id)
+
             async_vm_delete = client.virtual_machines.begin_delete(
                 self.azure_resource_group, instance['id'])
             async_vm_delete.wait()
