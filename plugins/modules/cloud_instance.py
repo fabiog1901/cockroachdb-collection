@@ -16,7 +16,7 @@ import google.cloud.compute_v1.types
 from google.api_core.extended_operation import ExtendedOperation
 
 # AZURE
-from azure.identity import DefaultAzureCredential
+from azure.identity import EnvironmentCredential
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.compute import ComputeManagementClient
 
@@ -24,7 +24,7 @@ from azure.mgmt.compute import ComputeManagementClient
 # setup global logging
 logging.basicConfig(filename="/tmp/cloud_instance.log",
                     level=logging.DEBUG,
-                    format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
+                    format='%(name)s [%(levelname)s] (%(threadName)s) %(message)s')
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
 logging.getLogger('boto').setLevel(logging.CRITICAL)
@@ -32,6 +32,12 @@ logging.getLogger('s3transfer').setLevel(logging.CRITICAL)
 logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logging.getLogger('azure.mgmt.compute').setLevel(logging.CRITICAL)
 logging.getLogger('azure.mgmt.resource').setLevel(logging.CRITICAL)
+logging.getLogger('azure.identity').setLevel(logging.CRITICAL)
+logging.getLogger('google.auth').setLevel(logging.CRITICAL)
+logging.getLogger('msal.authority').setLevel(logging.CRITICAL)
+logging.getLogger('msal.application').setLevel(logging.CRITICAL)
+logging.getLogger('msal.token_cache').setLevel(logging.CRITICAL)
+logging.getLogger('msal.telemetry').setLevel(logging.CRITICAL)
 logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(
     logging.CRITICAL)
 logging.getLogger('azure.identity._internal.decorators').setLevel(
@@ -42,7 +48,6 @@ ANSIBLE_METADATA = {
     'status': ['preview'],
     'supported_by': 'community'
 }
-
 
 DOCUMENTATION = '''
 ---
@@ -324,7 +329,8 @@ class CloudInstance:
 
             instances: list = self.__parse_aws_query(response)
 
-            self.__update_current_deployment(instances)
+            if instances:
+                self.__update_current_deployment(instances)
 
         ec2 = boto3.client('ec2')
         regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
@@ -368,13 +374,14 @@ class CloudInstance:
                     if x.status in ('PROVISIONING', 'STAGING', 'RUNNING'):
                         instances.append(self.__parse_gcp_query(
                             x, zone[6:-2], zone[-1]))
-
-        self.__update_current_deployment(instances)
+        if instances:
+            logging.error("HERE GCP")
+            self.__update_current_deployment(instances)
 
     def __fetch_azure_instance_network_config(self, vm):
 
         try:
-            credential = DefaultAzureCredential()
+            credential = EnvironmentCredential()
 
             client = ComputeManagementClient(
                 credential, self.azure_subscription_id)
@@ -419,7 +426,7 @@ class CloudInstance:
 
         try:
             # Acquire a credential object.
-            credential = DefaultAzureCredential()
+            credential = EnvironmentCredential()
 
         except Exception as e:
             logging.warning(e)
@@ -500,7 +507,7 @@ class CloudInstance:
                 self.instances.remove(x)
 
         current_count = len(current_group)
-        new_exact_count = group.get('exact_count', 0)
+        new_exact_count = int(group.get('exact_count', 0))
 
         # CASE 1
         if current_count == new_exact_count:
@@ -770,7 +777,7 @@ class CloudInstance:
 
         try:
             # Acquire a credential object using CLI-based authentication.
-            credential = DefaultAzureCredential()
+            credential = EnvironmentCredential()
             client = ComputeManagementClient(
                 credential, self.azure_subscription_id)
 
@@ -779,11 +786,11 @@ class CloudInstance:
 
             def get_type(x):
                 return {
-                    'standard_ssd': 'Standard-LRS',
-                    'premium_ssd': 'pd-ssd',
-                    'local_ssd': 'local-ssd',
-                    'standard_hdd': 'pd-standard',
-                    'premium_hdd': 'pd-standard'
+                    'standard_ssd': 'Standard_LRS',
+                    'premium_ssd': 'Standard_LRS',
+                    'local_ssd': 'Standard_LRS',
+                    'standard_hdd': 'Standard_LRS',
+                    'premium_hdd': 'Standard_LRS'
                 }.get(x, 'pd-standard')
 
             vols = []
@@ -808,7 +815,7 @@ class CloudInstance:
                 )
 
                 data_disk = poller.result()
-                self.__log_error(data_disk)
+
                 disk = {
                     "lun": i,
                     "name": prefix + '-disk-' + str(i),
@@ -979,7 +986,7 @@ class CloudInstance:
 
         # Acquire a credential object using CLI-based authentication.
         try:
-            credential = DefaultAzureCredential()
+            credential = EnvironmentCredential()
 
             client = ComputeManagementClient(
                 credential, self.azure_subscription_id)
@@ -1005,12 +1012,23 @@ class CloudInstance:
     def __merge_dicts(self, parent: dict, child: dict):
 
         merged = {}
+
+        # add all kv pairs of 'import'
+        for k, v in parent.get('import', {}).items():
+            merged[k] = v
+        
+        # parent explicit override parent imports
+        for k, v in parent.items():
+            merged[k] = v
+            
+        # child imports override parent
+        for k, v in child.get('import', {}).items():
+            merged[k] = v
+
+        # child explicit override child import and parent
         for k, v in child.items():
             merged[k] = v
 
-        for k, v in parent.items():
-            if not k in merged:
-                merged[k] = v
 
         # merge the items in tags, child overrides parent
         tags_dict = parent.get('tags', {})
