@@ -1047,12 +1047,12 @@ class CloudInstance:
         merged['tags'] = tags_dict
 
         # aggregate the inventory groups
-        merged['inventory_groups'] = set(parent.get(
-            'inventory_groups', []) + merged.get('inventory_groups', []))
+        merged['inventory_groups'] = list(set(parent.get(
+            'inventory_groups', []) + merged.get('inventory_groups', [])))
 
         # aggregate the security groups
-        merged['security_groups'] = set(parent.get(
-            'security_groups', []) + merged.get('security_groups', []))
+        merged['security_groups'] = list(set(parent.get(
+            'security_groups', []) + merged.get('security_groups', [])))
 
         # group_name
         merged.setdefault('group_name', merged['inventory_groups'][0])
