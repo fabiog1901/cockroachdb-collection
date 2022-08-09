@@ -487,7 +487,7 @@ class CloudInstance:
         # for each group in the cluster,
         # put all cluster defaults into the group
         for group in cluster.get('groups', []):
-            self.__log_error(str(self.__merge_dicts(cluster, group)))
+            self.__log_error(self.__merge_dicts(cluster, group))
             return
             self.__build_group(
                 cluster_name, self.__merge_dicts(cluster, group))
