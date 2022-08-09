@@ -316,7 +316,7 @@ class CloudInstance:
 
     def __fetch_aws_instances(self, deployment_id: str):
         logging.debug(
-            f"Fetching AWS instances for deployment_id={deployment_id}")
+            f"Fetching AWS instances for deployment_id = '{deployment_id}'")
 
         threads: list[threading.Thread] = []
 
@@ -335,19 +335,22 @@ class CloudInstance:
                 
             if instances:
                 self.__update_current_deployment(instances)
+        try:
+            ec2 = boto3.client('ec2')
+            regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
 
-        ec2 = boto3.client('ec2')
-        regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
+            for region in regions:
+                thread = threading.Thread(target=fetch_aws_instances_per_region, args=(
+                    region, deployment_id), daemon=True)
+                thread.start()
+                threads.append(thread)
 
-        for region in regions:
-            thread = threading.Thread(target=fetch_aws_instances_per_region, args=(
-                region, deployment_id), daemon=True)
-            thread.start()
-            threads.append(thread)
-
-        for x in threads:
-            x.join()
-
+            for x in threads:
+                x.join()
+        except Exception as e:
+                self.__log_error(e)
+                
+                
     def __fetch_gcp_instances(self, deployment_id: str, project_id: str):
         """
         Return a dictionary of all instances present in a project, grouped by their zone.
@@ -359,7 +362,7 @@ class CloudInstance:
             iterable collections of Instance objects as values.
         """
         logging.debug(
-            f"Fetching GCP instances for deployment_id={deployment_id}")
+            f"Fetching GCP instances for deployment_id = '{deployment_id}'")
 
         instance_client = google.cloud.compute_v1.InstancesClient()
         # Use the `max_results` parameter to limit the number of results that the API returns per response page.
