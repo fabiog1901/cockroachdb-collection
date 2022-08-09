@@ -137,7 +137,7 @@ class CloudInstance:
             for x in self.instances:
                 logging.debug(f'\t{x}')
 
-        return self.instances, False
+
         # 3. build the deployment: a list of dict with these attributes:
         #    - public_ip
         #    - public_hostname
@@ -155,15 +155,15 @@ class CloudInstance:
         #    - the unique cloud identifier (eg aws instance_id, for easy deleting operations)
 
         # instances of the new deployment will go into the 'new_instances' list
-        if self.present:
-            logging.info("Building deployment...")
-            self.__build_deployment()
+        # if self.present:
+        #     logging.info("Building deployment...")
+        #     self.__build_deployment()
 
-        if self.instances:
-            logging.info("Removing instances...")
-            self.__destroy_all(self.instances, self.gcp_project,
-                               self.azure_resource_group)
-            logging.info("Removed all instances marked for deletion")
+        # if self.instances:
+        #     logging.info("Removing instances...")
+        #     self.__destroy_all(self.instances, self.gcp_project,
+        #                        self.azure_resource_group)
+        #     logging.info("Removed all instances marked for deletion")
 
         logging.info("Waiting for all operation threads to complete")
         for x in self.threads:
@@ -323,13 +323,16 @@ class CloudInstance:
         def fetch_aws_instances_per_region(region, deployment_id):
             logging.debug(f'Fetching AWS instances from {region}')
 
-            ec2 = boto3.client('ec2', region_name=region)
-            response = ec2.describe_instances(
-                Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
-                         {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
+            try:
+                ec2 = boto3.client('ec2', region_name=region)
+                response = ec2.describe_instances(
+                    Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
+                            {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
 
-            instances: list = self.__parse_aws_query(response)
-
+                instances: list = self.__parse_aws_query(response)
+            except Exception as e:
+                self.__log_error(e)
+                
             if instances:
                 self.__update_current_deployment(instances)
 
