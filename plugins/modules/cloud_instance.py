@@ -154,16 +154,16 @@ class CloudInstance:
         #    - extra_vars
         #    - the unique cloud identifier (eg aws instance_id, for easy deleting operations)
 
-        # instances of the new deployment will go into the 'new_instances' list
-        # if self.present:
-        #     logging.info("Building deployment...")
-        #     self.__build_deployment()
+        instances of the new deployment will go into the 'new_instances' list
+        if self.present:
+            logging.info("Building deployment...")
+            self.__build_deployment()
 
-        # if self.instances:
-        #     logging.info("Removing instances...")
-        #     self.__destroy_all(self.instances, self.gcp_project,
-        #                        self.azure_resource_group)
-        #     logging.info("Removed all instances marked for deletion")
+        if self.instances:
+            logging.info("Removing instances...")
+            self.__destroy_all(self.instances, self.gcp_project,
+                               self.azure_resource_group)
+            logging.info("Removed all instances marked for deletion")
 
         logging.info("Waiting for all operation threads to complete")
         for x in self.threads:
