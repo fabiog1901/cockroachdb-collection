@@ -336,7 +336,7 @@ class CloudInstance:
             if instances:
                 self.__update_current_deployment(instances)
         try:
-            ec2 = boto3.client('ec2')
+            ec2 = boto3.client('ec2', region_name='us-east-1')
             regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
 
             for region in regions:
