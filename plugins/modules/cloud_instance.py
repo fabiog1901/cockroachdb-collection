@@ -137,6 +137,7 @@ class CloudInstance:
             for x in self.instances:
                 logging.debug(f'\t{x}')
 
+        return self.instances
         # 3. build the deployment: a list of dict with these attributes:
         #    - public_ip
         #    - public_hostname
