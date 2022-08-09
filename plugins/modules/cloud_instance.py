@@ -545,7 +545,7 @@ class CloudInstance:
 
     def __provision_aws_vm(self, cluster_name: str, group: dict, x: int):
         logging.debug('++aws %s %s %s' %
-                      (cluster_name, group['subnet'], x))
+                      (cluster_name, group['region'], x))
         # volumes
 
         def get_type(x):
