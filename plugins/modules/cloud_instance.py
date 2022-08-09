@@ -1048,11 +1048,11 @@ class CloudInstance:
 
         # aggregate the inventory groups
         merged['inventory_groups'] = parent.get(
-            'inventory_groups', []) + child.get('inventory_groups', [])
+            'inventory_groups', []) + merged.get('inventory_groups', [])
 
         # aggregate the security groups
         merged['security_groups'] = parent.get(
-            'security_groups', []) + child.get('security_groups', [])
+            'security_groups', []) + merged.get('security_groups', [])
 
         # group_name
         merged.setdefault('group_name', merged['inventory_groups'][0])
