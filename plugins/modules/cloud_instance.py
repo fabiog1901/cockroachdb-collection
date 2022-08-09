@@ -154,7 +154,7 @@ class CloudInstance:
         #    - extra_vars
         #    - the unique cloud identifier (eg aws instance_id, for easy deleting operations)
 
-        instances of the new deployment will go into the 'new_instances' list
+        # instances of the new deployment will go into the 'new_instances' list
         if self.present:
             logging.info("Building deployment...")
             self.__build_deployment()
@@ -487,6 +487,8 @@ class CloudInstance:
         # for each group in the cluster,
         # put all cluster defaults into the group
         for group in cluster.get('groups', []):
+            self.__log_error(str(self.__merge_dicts(cluster, group)))
+            return
             self.__build_group(
                 cluster_name, self.__merge_dicts(cluster, group))
 
