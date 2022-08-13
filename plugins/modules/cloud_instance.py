@@ -173,7 +173,7 @@ class CloudInstance:
 
         if self.errors:
             logging.error(str(self.errors))
-            raise ValueError(str(self.errors))
+            raise ValueError(self.errors)
 
         logging.debug("Returning new deployment list to client")
         return self.new_instances, self.changed
@@ -1095,7 +1095,7 @@ def main():
         ).run()
 
     except Exception as e:
-        module.fail_json(msg=pformat(e))
+        module.fail_json(msg=e)
 
     logging.debug("Deployment instances list:")
     for x in instances:
