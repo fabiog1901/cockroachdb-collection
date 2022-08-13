@@ -845,7 +845,9 @@ class CloudInstance:
             #         (self.azure_subscription_id,
             #          self.azure_resource_group, group['security_groups'][0])
             #     }
-
+            self.__log_error(group)
+            self.__log_error(self.__get_instance_type(group))
+            
             poller = client.virtual_machines.begin_create_or_update(
                 self.azure_resource_group,
                 prefix + '-vm',
