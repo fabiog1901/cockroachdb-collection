@@ -839,14 +839,12 @@ class CloudInstance:
             publisher, offer, sku, version = group['image'].split(':')
 
             nsg = None
-            # if group['security_groups']:
-            #     nsg = {
-            #         "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s" %
-            #         (self.azure_subscription_id,
-            #          self.azure_resource_group, group['security_groups'][0])
-            #     }
-
-            self.__log_error(self.__get_instance_type(group))
+            if group['security_groups']:
+                nsg = {
+                    "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/networkSecurityGroups/%s" %
+                    (self.azure_subscription_id,
+                     self.azure_resource_group, group['security_groups'][0])
+                }
             
             poller = client.virtual_machines.begin_create_or_update(
                 self.azure_resource_group,
