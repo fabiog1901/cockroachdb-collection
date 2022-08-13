@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import uuid
+from pprint import pprint
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
@@ -1094,7 +1095,7 @@ def main():
         ).run()
 
     except Exception as e:
-        module.fail_json(msg=e)
+        module.fail_json(msg=pprint(e))
 
     logging.debug("Deployment instances list:")
     for x in instances:
