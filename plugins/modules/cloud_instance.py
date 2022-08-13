@@ -1096,7 +1096,7 @@ def main():
         ).run()
 
     except Exception as e:
-        module.fail_json(msg=str(e))
+        module.fail_json(msg=e)
 
     logging.debug("Deployment instances list:")
     for x in instances:
