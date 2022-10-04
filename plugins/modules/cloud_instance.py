@@ -3,7 +3,6 @@ import logging
 import os
 import threading
 import uuid
-from pprint import pformat
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
