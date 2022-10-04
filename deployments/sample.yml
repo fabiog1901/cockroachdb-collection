@@ -1,6 +1,7 @@
 ---
 deployment_id: quantum
 owner: fabio
+state: present
 
 regions:
   defaults: &regions
@@ -124,7 +125,7 @@ regions:
 ##################
 
 # VM INSTANCES
-infra:
+deployment:
   - cluster_name: demo
     # group_name: krb5_server
     # copies: 1
@@ -132,7 +133,7 @@ infra:
       - <<: *gcp_us_central1_c
         inventory_groups:
           - krb5_server
-        exact_count: 1
+        exact_count: 0
         instance:
           cpu: 2
           mem: 4
@@ -150,7 +151,7 @@ infra:
     inventory_groups:
       - app
       - krb5_client
-    exact_count: 1
+    exact_count: 0
     instance:
       cpu: 2
       mem: 4
@@ -164,15 +165,15 @@ infra:
     groups:
       - <<: *gcp_us_east4_a
       - <<: *aws_us_west_2a
-      - <<: *gcp_europe_west2_a
-      # - <<: *azure_westeurope_a
+      # - <<: *gcp_europe_west2_a
+      - <<: *azure_westeurope_default
 
   - cluster_name: demo
     # group_name: ha_proxy
     # copies: 1
     inventory_groups:
       - haproxy
-    exact_count: 1
+    exact_count: 0
     instance:
       cpu: 2
       mem: 4
@@ -186,8 +187,8 @@ infra:
     groups:
       - <<: *gcp_us_east4_a
       - <<: *aws_us_west_2a
-      - <<: *gcp_europe_west2_a
-      # - <<: *azure_westeurope_c
+      # - <<: *gcp_europe_west2_a
+      - <<: *azure_westeurope_default
 
   - cluster_name: demo
     inventory_groups:
@@ -213,12 +214,12 @@ infra:
       - <<: *aws_us_west_2a
       - <<: *aws_us_west_2b
       - <<: *aws_us_west_2c
-      - <<: *gcp_europe_west2_a
-      - <<: *gcp_europe_west2_b
-      - <<: *gcp_europe_west2_c
-      # - <<: *azure_westeurope_a
-      # - <<: *azure_westeurope_b
-      # - <<: *azure_westeurope_c
+      # - <<: *gcp_europe_west2_a
+      # - <<: *gcp_europe_west2_b
+      # - <<: *gcp_europe_west2_c
+      - <<: *azure_westeurope_default
+      - <<: *azure_westeurope_default
+      - <<: *azure_westeurope_default
 
 ############
 # PLATFORM #
@@ -270,7 +271,7 @@ cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
 # cockroachdb_listen_addr: "{{ public_ip | default('') }}"
 # cockroachdb_attrs: "{{ extra_vars.attrs | default('std') }}"
 cockroachdb_cluster_organization: Workshop
-cockroachdb_enterprise_license: crl-0-xxxxxyyyyyzzzzz
+cockroachdb_enterprise_license: crl-0-EO7clJsGGAIiCFdvcmtzaG9w
 cockroachdb_encryption: no
 cockroachdb_encryption_key_old: 
 cockroachdb_encryption_key_new:

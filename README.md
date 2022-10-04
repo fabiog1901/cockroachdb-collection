@@ -21,12 +21,11 @@ ansible-galaxy collection install -r collections/ansible_collections/fabiog1901/
 pip install boto3 boto botocore google-api-core google-auth google-cloud-compute googleapis-common-protos azure-common azure-core azure-identity azure-mgmt-compute azure-mgmt-core azure-mgmt-network azure-mgmt-resource
 ```
 
-Now, we copy the sample Playbooks in the **CockroachDB Collection** to our working directory
+Now, we copy the sample Playbook and deployment file in the **CockroachDB Collection** to our working directory
 
 ```bash
-cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/* .  
-mkdir config
-cp collections/ansible_collections/fabiog1901/cockroachdb/config/sample.yml config     
+cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/site.yaml .  
+cp collections/ansible_collections/fabiog1901/cockroachdb/deployments/sample.yml .
 ```
 
 Check file `application.yml` includes all required steps you want to run once the infrastructure and the platform (CockroachDB cluster, HAPRoxy, etc..) have been provisioned and deployed.
@@ -56,7 +55,7 @@ ssh-add ~/Download/workshop.pem
 You can now run the playbook
 
 ```bash
-ansible-playbook site.yml -e @config/sample.yml  
+ansible-playbook site.yml -e @sample.yml  
 ```
 
 ## HOW-TO's
