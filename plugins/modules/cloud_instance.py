@@ -1054,7 +1054,7 @@ class CloudInstance:
             'security_groups', []) + merged.get('security_groups', [])))
 
         # group_name
-        merged.setdefault('group_name', merged['inventory_groups'][0])
+        merged.setdefault('group_name', sorted(merged['inventory_groups'])[0])
 
         # aggregate the volumes
         # TODO
