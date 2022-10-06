@@ -22,10 +22,27 @@ from azure.mgmt.compute import ComputeManagementClient
 
 
 # setup global logging
-logger = logging.getLogger('my_module_name')
-logger.basicConfig(filename="/tmp/cloud_instance.log",
-                    level=logging.DEBUG,
-                    format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# create formatter
+formatter = logging.Formatter(
+    '%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
+
+# add formatter to ch
+ch.setFormatter(formatter)
+
+# add ch to logger
+logger.addHandler(ch)
+
+
+# logging.basicConfig(filename="/tmp/cloud_instance.log",
+#                     level=logging.DEBUG,
+#                     format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
 # logging.getLogger('boto3').setLevel(logging.CRITICAL)
 # logging.getLogger('botocore').setLevel(logging.CRITICAL)
 # logging.getLogger('boto').setLevel(logging.CRITICAL)
@@ -137,7 +154,6 @@ class CloudInstance:
             logger.debug("Listing pre-existing instances:")
             for x in self.instances:
                 logger.debug(f'\t{x}')
-
 
         # 3. build the deployment: a list of dict with these attributes:
         #    - public_ip
@@ -328,17 +344,18 @@ class CloudInstance:
                 ec2 = boto3.client('ec2', region_name=region)
                 response = ec2.describe_instances(
                     Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
-                            {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
+                             {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
 
                 instances: list = self.__parse_aws_query(response)
             except Exception as e:
                 self.__log_error(e)
-                
+
             if instances:
                 self.__update_current_deployment(instances)
         try:
             ec2 = boto3.client('ec2', region_name='us-east-1')
-            regions = [x['RegionName'] for x in ec2.describe_regions()['Regions']]
+            regions = [x['RegionName']
+                       for x in ec2.describe_regions()['Regions']]
 
             for region in regions:
                 thread = threading.Thread(target=fetch_aws_instances_per_region, args=(
@@ -349,9 +366,8 @@ class CloudInstance:
             for x in threads:
                 x.join()
         except Exception as e:
-                self.__log_error(e)
-                
-                
+            self.__log_error(e)
+
     def __fetch_gcp_instances(self, deployment_id: str, project_id: str):
         """
         Return a dictionary of all instances present in a project, grouped by their zone.
@@ -545,7 +561,7 @@ class CloudInstance:
 
     def __provision_aws_vm(self, cluster_name: str, group: dict, x: int):
         logger.debug('++aws %s %s %s' %
-                      (cluster_name, group['region'], x))
+                     (cluster_name, group['region'], x))
         # volumes
 
         def get_type(x):
@@ -638,7 +654,7 @@ class CloudInstance:
 
     def __provision_gcp_vm(self, cluster_name: str, group: dict, x: int):
         logger.debug('++gcp %s %s %s' %
-                      (cluster_name, group['group_name'], x))
+                     (cluster_name, group['group_name'], x))
 
         gcpzone = '-'.join([group['region'], group['zone']])
         instance_name = '-'.join(['i'] + str(uuid.uuid4()).split('-')[3:])
@@ -780,7 +796,7 @@ class CloudInstance:
 
     def __provision_azure_vm(self, cluster_name: str, group: dict, x: int):
         logger.debug('++azure %s %s %s' %
-                      (cluster_name, group['group_name'], x))
+                     (cluster_name, group['group_name'], x))
 
         try:
             # Acquire a credential object using CLI-based authentication.
@@ -845,7 +861,7 @@ class CloudInstance:
                     (self.azure_subscription_id,
                      self.azure_resource_group, group['security_groups'][0])
                 }
-            
+
             poller = client.virtual_machines.begin_create_or_update(
                 self.azure_resource_group,
                 prefix + '-vm',
@@ -1021,11 +1037,11 @@ class CloudInstance:
         # add all kv pairs of 'import'
         for k, v in parent.get('import', {}).items():
             merged[k] = v
-        
+
         # parent explicit override parent imports
         for k, v in parent.items():
             merged[k] = v
-            
+
         # child imports override parent
         for k, v in child.get('import', {}).items():
             merged[k] = v
@@ -1033,7 +1049,6 @@ class CloudInstance:
         # child explicit override child import and parent
         for k, v in child.items():
             merged[k] = v
-
 
         # merge the items in tags, child overrides parent
         tags_dict = parent.get('tags', {})
