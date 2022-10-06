@@ -22,26 +22,27 @@ from azure.mgmt.compute import ComputeManagementClient
 
 
 # setup global logging
-logging.basicConfig(filename="/tmp/cloud_instance.log",
+logger = logging.getLogger('my_module_name')
+logger.basicConfig(filename="/tmp/cloud_instance.log",
                     level=logging.DEBUG,
                     format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
-logging.getLogger('boto3').setLevel(logging.CRITICAL)
-logging.getLogger('botocore').setLevel(logging.CRITICAL)
-logging.getLogger('boto').setLevel(logging.CRITICAL)
-logging.getLogger('s3transfer').setLevel(logging.CRITICAL)
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
-logging.getLogger('azure.mgmt.compute').setLevel(logging.CRITICAL)
-logging.getLogger('azure.mgmt.resource').setLevel(logging.CRITICAL)
-logging.getLogger('azure.identity').setLevel(logging.CRITICAL)
-logging.getLogger('google.auth').setLevel(logging.CRITICAL)
-logging.getLogger('msal.authority').setLevel(logging.CRITICAL)
-logging.getLogger('msal.application').setLevel(logging.CRITICAL)
-logging.getLogger('msal.token_cache').setLevel(logging.CRITICAL)
-logging.getLogger('msal.telemetry').setLevel(logging.CRITICAL)
-logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(
-    logging.CRITICAL)
-logging.getLogger('azure.identity._internal.decorators').setLevel(
-    logging.CRITICAL)
+# logging.getLogger('boto3').setLevel(logging.CRITICAL)
+# logging.getLogger('botocore').setLevel(logging.CRITICAL)
+# logging.getLogger('boto').setLevel(logging.CRITICAL)
+# logging.getLogger('s3transfer').setLevel(logging.CRITICAL)
+# logging.getLogger('urllib3').setLevel(logging.CRITICAL)
+# logging.getLogger('azure.mgmt.compute').setLevel(logging.CRITICAL)
+# logging.getLogger('azure.mgmt.resource').setLevel(logging.CRITICAL)
+# logging.getLogger('azure.identity').setLevel(logging.CRITICAL)
+# logging.getLogger('google.auth').setLevel(logging.CRITICAL)
+# logging.getLogger('msal.authority').setLevel(logging.CRITICAL)
+# logging.getLogger('msal.application').setLevel(logging.CRITICAL)
+# logging.getLogger('msal.token_cache').setLevel(logging.CRITICAL)
+# logging.getLogger('msal.telemetry').setLevel(logging.CRITICAL)
+# logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(
+#     logging.CRITICAL)
+# logging.getLogger('azure.identity._internal.decorators').setLevel(
+#     logging.CRITICAL)
 
 ANSIBLE_METADATA = {
     'metadata_version': '1.1',
@@ -127,15 +128,15 @@ class CloudInstance:
     def run(self):
 
         # fetch all running instances for the deployment_id and append them to the 'instances' list
-        logging.info(
+        logger.info(
             f"Fetching all instances with deployment_id = '{self.deployment_id}'")
         self.__fetch_all(self.deployment_id, self.gcp_project,
                          self.azure_resource_group)
 
         if self.instances:
-            logging.debug("Listing pre-existing instances:")
+            logger.debug("Listing pre-existing instances:")
             for x in self.instances:
-                logging.debug(f'\t{x}')
+                logger.debug(f'\t{x}')
 
 
         # 3. build the deployment: a list of dict with these attributes:
@@ -156,25 +157,25 @@ class CloudInstance:
 
         # instances of the new deployment will go into the 'new_instances' list
         if self.present:
-            logging.info("Building deployment...")
+            logger.info("Building deployment...")
             self.__build_deployment()
 
         if self.instances:
-            logging.info("Removing instances...")
+            logger.info("Removing instances...")
             self.__destroy_all(self.instances, self.gcp_project,
                                self.azure_resource_group)
-            logging.info("Removed all instances marked for deletion")
+            logger.info("Removed all instances marked for deletion")
 
-        logging.info("Waiting for all operation threads to complete")
+        logger.info("Waiting for all operation threads to complete")
         for x in self.threads:
             x.join()
-        logging.info("All operation threads have completed")
+        logger.info("All operation threads have completed")
 
         if self.errors:
-            logging.error(str(self.errors))
+            logger.error(str(self.errors))
             raise ValueError(self.errors)
 
-        logging.debug("Returning new deployment list to client")
+        logger.debug("Returning new deployment list to client")
         return self.new_instances, self.changed
 
     def __fetch_all(self, deployment_id: str, gcp_project: str, azure_resource_group: str):
@@ -303,7 +304,7 @@ class CloudInstance:
         }]
 
     # def __fetch_aws_instances_per_region(self, region, deployment_id):
-    #     logging.debug(f'Fetching AWS instances from {region}')
+    #     logger.debug(f'Fetching AWS instances from {region}')
 
     #     ec2 = boto3.client('ec2', region_name=region)
     #     response = ec2.describe_instances(
@@ -315,13 +316,13 @@ class CloudInstance:
     #     self.__update_current_deployment(instances)
 
     def __fetch_aws_instances(self, deployment_id: str):
-        logging.debug(
+        logger.debug(
             f"Fetching AWS instances for deployment_id = '{deployment_id}'")
 
         threads: list[threading.Thread] = []
 
         def fetch_aws_instances_per_region(region, deployment_id):
-            logging.debug(f'Fetching AWS instances from {region}')
+            logger.debug(f'Fetching AWS instances from {region}')
 
             try:
                 ec2 = boto3.client('ec2', region_name=region)
@@ -361,7 +362,7 @@ class CloudInstance:
             A dictionary with zone names as keys (in form of "zones/{zone_name}") and
             iterable collections of Instance objects as values.
         """
-        logging.debug(
+        logger.debug(
             f"Fetching GCP instances for deployment_id = '{deployment_id}'")
 
         instance_client = google.cloud.compute_v1.InstancesClient()
@@ -414,7 +415,7 @@ class CloudInstance:
             return private_ip, public_ip, public_hostname
 
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             self.__log_error(e)
 
     def __get_azure_instance_details(self, vm):
@@ -425,7 +426,7 @@ class CloudInstance:
         )
 
     def __fetch_azure_instances(self, deployment_id: str):
-        logging.debug(
+        logger.debug(
             f"Fetching Azure instances for deployment_id = '{deployment_id}'")
 
         threads: list[threading.Thread] = []
@@ -435,7 +436,7 @@ class CloudInstance:
             credential = EnvironmentCredential()
 
         except Exception as e:
-            logging.warning(e)
+            logger.warning(e)
             return
 
         client = ComputeManagementClient(
@@ -454,17 +455,17 @@ class CloudInstance:
 
     def __update_current_deployment(self, instances: list):
         with self._lock:
-            logging.debug("Updating pre-existing instances list")
+            logger.debug("Updating pre-existing instances list")
             self.instances += instances
 
     def __update_new_deployment(self, instances: list):
         with self._lock:
-            logging.debug("Updating new instances list")
+            logger.debug("Updating new instances list")
             self.new_instances += instances
 
     def __log_error(self, error: str):
         with self._lock:
-            logging.debug("Updating errors list")
+            logger.debug("Updating errors list")
             self.errors.append(error)
 
     def __build_deployment(self):
@@ -543,7 +544,7 @@ class CloudInstance:
         self.__update_new_deployment(current_group)
 
     def __provision_aws_vm(self, cluster_name: str, group: dict, x: int):
-        logging.debug('++aws %s %s %s' %
+        logger.debug('++aws %s %s %s' %
                       (cluster_name, group['region'], x))
         # volumes
 
@@ -632,11 +633,11 @@ class CloudInstance:
             # add the instance to the list
             self.__update_new_deployment(self.__parse_aws_query(response))
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             self.__log_error(e)
 
     def __provision_gcp_vm(self, cluster_name: str, group: dict, x: int):
-        logging.debug('++gcp %s %s %s' %
+        logger.debug('++gcp %s %s %s' %
                       (cluster_name, group['group_name'], x))
 
         gcpzone = '-'.join([group['region'], group['zone']])
@@ -761,7 +762,7 @@ class CloudInstance:
 
             self.__wait_for_extended_operation(operation)
 
-            logging.debug(f"GCP instance created: {instance.name}")
+            logger.debug(f"GCP instance created: {instance.name}")
 
             # fetch details
             instance = instance_client.get(
@@ -774,11 +775,11 @@ class CloudInstance:
                 [self.__parse_gcp_query(instance, group['region'], group['zone'])])
 
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             self.__log_error(e)
 
     def __provision_azure_vm(self, cluster_name: str, group: dict, x: int):
-        logging.debug('++azure %s %s %s' %
+        logger.debug('++azure %s %s %s' %
                       (cluster_name, group['group_name'], x))
 
         try:
@@ -934,7 +935,7 @@ class CloudInstance:
             )
 
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             self.__log_error(e)
 
     def __destroy_all(self, instances: list, gcp_project: str, azure_resource_group: str):
@@ -951,7 +952,7 @@ class CloudInstance:
             self.threads.append(thread)
 
     def __destroy_aws_vm(self, instance: dict):
-        logging.debug('--aws %s' % instance['id'])
+        logger.debug('--aws %s' % instance['id'])
 
         ec2 = boto3.client('ec2', region_name=instance['region'])
 
@@ -960,12 +961,12 @@ class CloudInstance:
         status = response['TerminatingInstances'][0]['CurrentState']['Name']
 
         if status in ['shutting-down', 'terminated']:
-            logging.debug(f'Deleted AWS instance: {instance}')
+            logger.debug(f'Deleted AWS instance: {instance}')
         else:
-            logging.error('Unexpected response: {response}}')
+            logger.error('Unexpected response: {response}}')
 
     def __destroy_gcp_vm(self, instance: dict):
-        logging.debug('--gcp %s' % instance['id'])
+        logger.debug('--gcp %s' % instance['id'])
         """
         Send an instance deletion request to the Compute Engine API and wait for it to complete.
 
@@ -983,10 +984,10 @@ class CloudInstance:
             instance=instance['id']
         )
         # self.__wait_for_extended_operation(operation)
-        logging.debug(f"Deleting GCP instance: {instance}")
+        logger.debug(f"Deleting GCP instance: {instance}")
 
     def __destroy_azure_vm(self, instance: dict):
-        logging.debug('--azure %s' % instance['id'])
+        logger.debug('--azure %s' % instance['id'])
 
         # Acquire a credential object using CLI-based authentication.
         try:
@@ -999,7 +1000,7 @@ class CloudInstance:
                 self.azure_resource_group, instance['id'])
             async_vm_delete.wait()
         except Exception as e:
-            logging.error(e)
+            logger.error(e)
             self.__log_error(e)
 
     # UTIL METHODS
@@ -1062,7 +1063,7 @@ class CloudInstance:
         result = operation.result(timeout=300)
 
         if operation.error_code:
-            logging.debug(
+            logger.debug(
                 f"GCP Error: {operation.error_code}: {operation.error_message}")
 
         return result
@@ -1093,9 +1094,9 @@ def main():
     except Exception as e:
         module.fail_json(msg=e)
 
-    logging.debug("Deployment instances list:")
+    logger.debug("Deployment instances list:")
     for x in instances:
-        logging.debug(f'\t{x}')
+        logger.debug(f'\t{x}')
 
     # Outputs
     module.exit_json(changed=changed, out=instances)

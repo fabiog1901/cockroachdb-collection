@@ -54,7 +54,7 @@ ssh-add ~/Download/workshop.pem
 You can now run the playbook
 
 ```bash
-ansible-playbook site.yml -e @sample.yml  
+ansible-playbook site.yaml -e @sample.yaml  
 ```
 
 ## HOW-TO's

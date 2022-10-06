@@ -217,9 +217,9 @@
 
       loop: "{{ instances.out }}"
 
-    - template:
-        src: inventory.j2
-        dest: "{{ deployment_id }}.ini"
+    # - template:
+    #     src: inventory.j2
+    #     dest: "{{ deployment_id }}.ini"
     
     - name: print Ansible inventory for reference
       debug:
