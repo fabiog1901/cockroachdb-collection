@@ -864,7 +864,7 @@ class CloudInstance:
 
             poller = client.virtual_machines.begin_create_or_update(
                 self.azure_resource_group,
-                prefix + '-vm',
+                prefix,
                 {
                     "location": group['region'],
                     "tags": {
