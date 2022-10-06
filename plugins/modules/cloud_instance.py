@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # create console handler and set level to debug
-ch = logging.StreamHandler()
+ch = logging.FileHandler(filename="/tmp/cloud_instance.log")
 ch.setLevel(logging.DEBUG)
 
 # create formatter
