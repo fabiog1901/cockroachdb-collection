@@ -24,7 +24,7 @@ from azure.mgmt.compute import ComputeManagementClient
 # setup global logging
 logging.basicConfig(filename="/tmp/cloud_instance.log",
                     level=logging.DEBUG,
-                    format='%(name)s [%(levelname)s] (%(threadName)s) %(message)s')
+                    format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
 logging.getLogger('boto3').setLevel(logging.CRITICAL)
 logging.getLogger('botocore').setLevel(logging.CRITICAL)
 logging.getLogger('boto').setLevel(logging.CRITICAL)
@@ -382,7 +382,6 @@ class CloudInstance:
                         instances.append(self.__parse_gcp_query(
                             x, zone[6:-2], zone[-1]))
         if instances:
-            logging.error("HERE GCP")
             self.__update_current_deployment(instances)
 
     def __fetch_azure_instance_network_config(self, vm):
@@ -925,8 +924,6 @@ class CloudInstance:
             )
 
             instance = poller.result()
-
-            logging.debug(f"instance: {instance}")
 
             # add the instance to the list
             self.__update_new_deployment(

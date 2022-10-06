@@ -9,9 +9,6 @@
     apt install -y ntp 
   register: out
 
-- debug:
-    msg: "{{ out }}"
-
 - name: stop ntp
   ansible.builtin.systemd:
     name: ntp
@@ -31,9 +28,6 @@
 
   register: out
   ignore_errors: yes
-
-- debug:
-    msg: "{{ out }}"
 
 - name: restart ntp
   ansible.builtin.systemd:

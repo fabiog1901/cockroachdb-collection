@@ -234,7 +234,7 @@
 #  PLATFORM  #
 ##############
 - name: INSTALL MIT KDC CLIENT
-  hosts: krb5_client, krb_client
+  hosts: krb5_client
   gather_facts: yes
   become: yes
   tasks:
@@ -248,7 +248,7 @@
     - krb_client
 
 - name: INSTALL MIT KDC SERVER
-  hosts: krb5_server, krb_server
+  hosts: krb5_server
   gather_facts: yes
   become: yes
   tasks:
@@ -273,7 +273,7 @@
     - certificates
 
 - name: DEPLOY COCKROACHDB
-  hosts: cockroachdb, crdb
+  hosts: cockroachdb
   gather_facts: yes
   become: yes
   serial: "{{ (cockroachdb_deployment|default('standard') == 'upgrade') | ternary(1, '100%') }}"
@@ -287,7 +287,7 @@
     - cockroachdb
 
 - name: INSTALL COCKROACHDB-HAPROXY
-  hosts: fabiog1901.cockroachdb.haproxy
+  hosts: haproxy
   gather_facts: yes
   become: yes
   tasks:
@@ -544,6 +544,7 @@
         msg:
           - "LOAD BALANCERS"
           - "-------------------------------------"
+          - "{{ hostvars[item].cloud }}"
           - "{{ hostvars[item].public_ip }}"
           - "{{ hostvars[item].private_ip }}"
           - "{{ hostvars[item].public_hostname }}"

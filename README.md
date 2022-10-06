@@ -25,12 +25,11 @@ Now, we copy the sample Playbook and deployment file in the **CockroachDB Collec
 
 ```bash
 cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/site.yaml .  
-cp collections/ansible_collections/fabiog1901/cockroachdb/deployments/sample.yml .
+cp collections/ansible_collections/fabiog1901/cockroachdb/deployments/sample.yaml .
 ```
 
-Check file `application.yml` includes all required steps you want to run once the infrastructure and the platform (CockroachDB cluster, HAPRoxy, etc..) have been provisioned and deployed.
-
-Check file `config/sample.yml` correctly represents the deployment definition of the desired infrastructure and platform.
+File `sample.yml` represents the deployment definition of the desired infrastructure and platform.
+Make sure data in the `region` variable correctly represents YOUR cloud environment.
 
 Export the AWS keys and start the SSH Agent, adding the ssh key to the agent
 
