@@ -93,11 +93,11 @@ requirements:
 EXAMPLES = '''
 - name: list CC regions in GCP excluding serverless
   fabiog1901.cockroachdb.cc_regions_info:
-  provider: GCP
-  serverless: no
-  api_client:
-    api_version: '2022-09-20'
-  register: out
+    provider: GCP
+    serverless: no
+    api_client:
+      api_version: '2022-09-20'
+    register: out
 '''
 
 RETURN = '''
