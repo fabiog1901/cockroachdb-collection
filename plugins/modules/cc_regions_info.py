@@ -167,12 +167,6 @@ class Client:
 
     def run(self):
 
-        def get(provider):
-            return cockroach_cloud_list_available_regions.sync_detailed(
-                client=self.client,
-                provider=provider,
-                serverless=self.serverless)
-
         regions: list  = []
         
         for provider in self.providers:
