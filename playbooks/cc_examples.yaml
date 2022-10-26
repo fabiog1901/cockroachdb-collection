@@ -1,0 +1,19 @@
+---
+
+- name: List Cockroach Cloud regions
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  become: no
+  tasks:
+    - name: cc test
+      fabiog1901.cockroachdb.cc_regions_info:
+        provider: ALL
+        serverless: no
+        api_client:
+          api_version: '2022-09-20'
+      register: out
+
+    - debug:
+        var: out
+          

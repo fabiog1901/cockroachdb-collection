@@ -23,7 +23,6 @@ options:
   provider:
     description:
       - Optional CloudProvider for filtering.
-      - Must be written in sentences.
     default: ALL
     type: str
     choices:
@@ -110,18 +109,23 @@ regions:
     distance:
       description: Distance in miles, based on client IP address
       type: int
+      returned: always
     location:
       description: region name
       type: str
+      returned: always
     name:
       description: cloud provider location name
       type: str
+      returned: always
     provider:
-      description: AWS | GCP
+      description: provider name (AWS, GCP)
       type: str
+      returned: always
     serverless:
       description: region available for serverless clusters
       type: bool
+      returned: always
   sample:
     - distance: 202.76012
       location: N. Virginia
