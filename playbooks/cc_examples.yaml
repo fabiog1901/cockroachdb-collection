@@ -1,0 +1,30 @@
+---
+
+- name: COCKROACH CLOUD SAMPLE PLAYBOOK
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  become: no
+  tasks:
+    - name: List the regions available for new clusters and nodes.
+      fabiog1901.cockroachdb.cc_regions_info:
+        provider: ALL
+        serverless: no
+        api_client:
+          api_version: '2022-09-20'
+      register: out
+
+    - debug:
+        var: out
+
+    - name: List clusters owned by an organization.
+      fabiog1901.cockroachdb.cc_clusters_info:
+        show_inactive: no
+        cluster_id: cd9f8dd0-9802-4b80-a85e-c215dcb3f2df
+        api_client:
+          # host: mona
+          api_version: '2022-09-20'
+      register: out
+
+    - debug:
+        var: out

@@ -40,43 +40,17 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-# logging.basicConfig(filename="/tmp/cloud_instance.log",
-#                     level=logging.DEBUG,
-#                     format='%(asctime)s [%(levelname)s] (%(threadName)s) %(message)s')
-# logging.getLogger('boto3').setLevel(logging.CRITICAL)
-# logging.getLogger('botocore').setLevel(logging.CRITICAL)
-# logging.getLogger('boto').setLevel(logging.CRITICAL)
-# logging.getLogger('s3transfer').setLevel(logging.CRITICAL)
-# logging.getLogger('urllib3').setLevel(logging.CRITICAL)
-# logging.getLogger('azure.mgmt.compute').setLevel(logging.CRITICAL)
-# logging.getLogger('azure.mgmt.resource').setLevel(logging.CRITICAL)
-# logging.getLogger('azure.identity').setLevel(logging.CRITICAL)
-# logging.getLogger('google.auth').setLevel(logging.CRITICAL)
-# logging.getLogger('msal.authority').setLevel(logging.CRITICAL)
-# logging.getLogger('msal.application').setLevel(logging.CRITICAL)
-# logging.getLogger('msal.token_cache').setLevel(logging.CRITICAL)
-# logging.getLogger('msal.telemetry').setLevel(logging.CRITICAL)
-# logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(
-#     logging.CRITICAL)
-# logging.getLogger('azure.identity._internal.decorators').setLevel(
-#     logging.CRITICAL)
-
-ANSIBLE_METADATA = {
-    'metadata_version': '1.1',
-    'status': ['preview'],
-    'supported_by': 'community'
-}
 
 DOCUMENTATION = '''
 ---
 module: cloud_instance
 
-short_description: Creates, updates and deletes role config groups for a given cluster
+short_description: Creates, updates and deletes public cloud instances
 
-version_added: "2.9.5"
+version_added: "1.0.0"
 
 description:
-    - "Creates, updates and deletes new role config groups for a given cluster"
+    - Creates, updates and deletes public cloud instances
 
 options:
     state:
@@ -84,15 +58,10 @@ options:
             - State of the deployment
         default: "present"
         type: str
-        choice: ["present", "absent"]
+        choices: 
+          - present
+          - absent
 
-    deployment:
-        description:
-            - List of clusters to provision
-        default: "[]"
-        type: list
-
-requirements: [ "aws", "azure", "gcp" ]
 
 author:
     - Fabio Ghirardello
@@ -104,7 +73,6 @@ EXAMPLES = '''
     deployment:
       -
       -
-
 '''
 
 RETURN = '''

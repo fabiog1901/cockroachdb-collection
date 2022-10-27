@@ -1,32 +1,49 @@
 # CockroachDB Collection
 
-Ansible Roles and Playbooks to spin up secure, kerberized, multi-region CockroachDB clusters for demos and workshops.
+The Collection groups together Ansible Module, Roles and Playbooks suited for working with all [CockroachDB deployment options](https://www.cockroachlabs.com/get-started-cockroachdb/):
+
+- CockroachDB-as-a-Service (Cockroach Cloud)
+  - CockroachDB dedicated
+  - CockroachDB serverless
+
+- CockroachDB Self Hosted
+
+Collection documentation: <https://fabiog1901.github.io/cockroachdb-collection/index.html>
+
+## CockroachDB-as-a-Service
+
+Install the collection, currently hosted on GitHub
+
+```bash
+ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-collection.git
+
+# install required pip packages
+pip install cockroachdb-cloud-client
+```
+
+Head to [playbooks/cc_examples.yaml](playbooks/cc_examples.yaml) for sample Playbooks and Tasks.
+
+## CockroachDB Self-Hosted
+
+The Collection includes a Playbook for spinning up a secure, kerberized, multi-region CockroachDB cluster for demos.
 
 A complete example on how to use this Collection is available in this [blog](https://dev.to/cockroachlabs/deploy-cockroachdb-on-the-public-cloud-using-ansible-1ek1).
 
-## Setup
+### Setup
 
-Install the **CockroachDB Collection** at playbook level
-
-```bash
-ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-collection.git -p collections/
-```
-
-Install the required Ansible Collections:
+Install the Collection and its requirements
 
 ```bash
-ansible-galaxy collection install -r collections/ansible_collections/fabiog1901/cockroachdb/requirements.yml 
+ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-collection.git
 
 # install required pip packages for AWS, GCP, Azure
 pip install boto3 boto botocore google-api-core google-auth google-cloud-compute googleapis-common-protos azure-common azure-core azure-identity azure-mgmt-compute azure-mgmt-core azure-mgmt-network azure-mgmt-resource
 ```
 
-Now, we copy the sample Playbook and deployment file in the **CockroachDB Collection** to our working directory
+Now, we copy the sample Playbook and deployment files to our working directory
 
-```bash
-cp collections/ansible_collections/fabiog1901/cockroachdb/playbooks/site.yaml .  
-cp collections/ansible_collections/fabiog1901/cockroachdb/deployments/sample.yaml .
-```
+- [playbooks/site.yaml](playbooks/site.yaml)
+- [deployments/sample.yaml](deployments/sample.yaml)
 
 File `sample.yml` represents the deployment definition of the desired infrastructure and platform.
 Make sure data in the `region` variable correctly represents YOUR cloud environment.
@@ -57,8 +74,6 @@ You can now run the playbook
 ansible-playbook site.yaml -e @sample.yaml  
 ```
 
-## HOW-TO's
-
 ### Kerberos Login
 
 Below a reminder on how to login via Kerberos ticket
@@ -87,7 +102,7 @@ sudo cockroach sql --certs-dir=/var/lib/cockroach/certs
 sudo cockroach sql --url "postgresql://root@<haproxy-hostname>:26257/defaultdb?sslmode=require&sslrootcert=/var/lib/cockroach/certs/ca.crt&sslcert=/var/lib/cockroach/certs/client.root.crt&sslkey=/var/lib/cockroach/certs/client.root.key" 
 ```
 
-Log in as `app`, bypassing Kerberos, assuming you have created cert+key for this user and the user is a databse user.
+Log in as `app`, bypassing Kerberos, assuming you have created cert+key for this user and the user is a database user.
 
 ```bash
 sudo cockroach sql --url "postgresql://app@<haproxy-hostname>:26257/defaultdb?sslmode=require&sslrootcert=ca.crt&sslcert=client.app.crt&sslkey=client.app.key" 
