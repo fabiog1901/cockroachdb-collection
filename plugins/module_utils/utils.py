@@ -53,5 +53,6 @@ class APIClient(AuthenticatedClient):
             base_url=base_url,
             token=token,
             headers={"cc-version": api_version},
-            verify_ssl=verify_ssl
+            verify_ssl=verify_ssl,
+            timeout=20.0
         )
