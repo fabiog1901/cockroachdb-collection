@@ -79,9 +79,9 @@ requirements:
 '''
 
 EXAMPLES = '''
-- name: list users for my cluster
+- name: list my bills
   fabiog1901.cockroachdb.cc_invoices_info:
-    invoice_id: 
+    # invoice_id:  
     api_client:
       api_version: '2022-09-20'
 '''
