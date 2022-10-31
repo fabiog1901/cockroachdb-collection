@@ -88,47 +88,52 @@ EXAMPLES = '''
 '''
 
 RETURN = '''
-cluster_id:
-  description: ''
-  type: str
-  returned: always
-created_at:
-  description: ''
-  type: str
-  returned: always
-spec:
-  description: 
-    - LogExportClusterSpecification contains all the data necessary to configure log export for an individual cluster. 
-    - Users would supply this data via the API and also receive it back when inspecting the state of their log export configuration.
+logexport:
+  description: LogExportClusterInfo contains a package of information that fully describes both the intended state of the log export configuration for a specific cluster but also some metadata around its deployment status, any error messages, and some timestamps.
   type: dict
-  returned: always
+  elements: dict
   contains:
-    auth_principal:
-      description: auth_principal is either the AWS Role ARN that identifies a role that the cluster account can assume to write to CloudWatch or the GCP Project ID that the cluster service account has permissions to write to for cloud logging.
+    cluster_id:
+      description: ''
       type: str
       returned: always
-    log_name:
-      description: log_name is an identifier for the logs in the customer's log sink.
+    created_at:
+      description: ''
       type: str
       returned: always
-    type:
+    spec:
+      description: 
+        - LogExportClusterSpecification contains all the data necessary to configure log export for an individual cluster. 
+        - Users would supply this data via the API and also receive it back when inspecting the state of their log export configuration.
+      type: dict
+      returned: always
+      contains:
+        auth_principal:
+          description: auth_principal is either the AWS Role ARN that identifies a role that the cluster account can assume to write to CloudWatch or the GCP Project ID that the cluster service account has permissions to write to for cloud logging.
+          type: str
+          returned: always
+        log_name:
+          description: log_name is an identifier for the logs in the customer's log sink.
+          type: str
+          returned: always
+        type:
+          description:
+            - "LogExportType encodes the cloud selection that we're exporting to along with the cloud logging platform. Currently, each cloud has a single logging platform."
+            - "Allowed: AWS_CLOUDWATCH┃GCP_CLOUD_LOGGING"
+    status:
       description:
-        - "LogExportType encodes the cloud selection that we're exporting to along with the cloud logging platform. Currently, each cloud has a single logging platform."
-        - "Allowed: AWS_CLOUDWATCH┃GCP_CLOUD_LOGGING"
-status:
-  description:
-    - "LogExportStatus encodes the possible states that a configuration can be in as it is created, deployed, and disabled."
-    - "Allowed: DISABLED┃DISABLING┃DISABLE_FAILED┃ENABLED┃ENABLING┃ENABLE_FAILED"
-  type: str
-  returned: always
-updated_at:
-  description: ''
-  type: str
-  returned: always
-user_message:
-  description: ''
-  type: str
-  returned: always
+        - "LogExportStatus encodes the possible states that a configuration can be in as it is created, deployed, and disabled."
+        - "Allowed: DISABLED┃DISABLING┃DISABLE_FAILED┃ENABLED┃ENABLING┃ENABLE_FAILED"
+      type: str
+      returned: always
+    updated_at:
+      description: ''
+      type: str
+      returned: always
+    user_message:
+      description: ''
+      type: str
+      returned: always
 '''
 
 

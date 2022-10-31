@@ -22,7 +22,7 @@
     <script src="../../../_static/js/theme.js"></script>
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="fabiog1901.cockroachdb.cc_regions_info module – List the regions available for new clusters and nodes." href="cc_regions_info_module.html" />
-    <link rel="prev" title="fabiog1901.cockroachdb.cc_databases_info module – List databases for a cluster." href="cc_databases_info_module.html" /><!-- extra head elements for Ansible beyond RTD Sphinx Theme -->
+    <link rel="prev" title="fabiog1901.cockroachdb.cc_invoices_info module – List invoices for a given organization." href="cc_invoices_info_module.html" /><!-- extra head elements for Ansible beyond RTD Sphinx Theme -->
 
 
 
@@ -264,74 +264,82 @@ see <a class="reference internal" href="#ansible-collections-fabiog1901-cockroac
 </thead>
 <tbody>
 <tr class="row-even"><td><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-cluster_id"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-cluster-id"><strong>cluster_id</strong></p>
-<a class="ansibleOptionLink" href="#return-cluster_id" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+<div class="ansibleOptionAnchor" id="return-logexport"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport"><strong>logexport</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">dictionary</span></p>
 </div></td>
-<td><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
-</div></td>
-</tr>
-<tr class="row-odd"><td><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-created_at"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-created-at"><strong>created_at</strong></p>
-<a class="ansibleOptionLink" href="#return-created_at" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
-</div></td>
-<td><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
+<td><div class="ansible-option-cell"><p>LogExportClusterInfo contains a package of information that fully describes both the intended state of the log export configuration for a specific cluster but also some metadata around its deployment status, any error messages, and some timestamps.</p>
+<p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> success</p>
 </div></td>
 </tr>
-<tr class="row-even"><td><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-spec"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-spec"><strong>spec</strong></p>
-<a class="ansibleOptionLink" href="#return-spec" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">dictionary</span></p>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/cluster_id"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-cluster-id"><strong>cluster_id</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/cluster_id" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
 </div></td>
-<td><div class="ansible-option-cell"><p>LogExportClusterSpecification contains all the data necessary to configure log export for an individual cluster.</p>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
+</div></td>
+</tr>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/created_at"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-created-at"><strong>created_at</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/created_at" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
+</div></td>
+</tr>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/spec"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-spec"><strong>spec</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/spec" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">dictionary</span></p>
+</div></td>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>LogExportClusterSpecification contains all the data necessary to configure log export for an individual cluster.</p>
 <p>Users would supply this data via the API and also receive it back when inspecting the state of their log export configuration.</p>
 <p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
 </div></td>
 </tr>
-<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-spec/auth_principal"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-spec-auth-principal"><strong>auth_principal</strong></p>
-<a class="ansibleOptionLink" href="#return-spec/auth_principal" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/spec/auth_principal"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-spec-auth-principal"><strong>auth_principal</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/spec/auth_principal" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
 </div></td>
-<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>auth_principal is either the AWS Role ARN that identifies a role that the cluster account can assume to write to CloudWatch or the GCP Project ID that the cluster service account has permissions to write to for cloud logging.</p>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>auth_principal is either the AWS Role ARN that identifies a role that the cluster account can assume to write to CloudWatch or the GCP Project ID that the cluster service account has permissions to write to for cloud logging.</p>
 <p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
 </div></td>
 </tr>
-<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-spec/log_name"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-spec-log-name"><strong>log_name</strong></p>
-<a class="ansibleOptionLink" href="#return-spec/log_name" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/spec/log_name"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-spec-log-name"><strong>log_name</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/spec/log_name" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
 </div></td>
-<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>log_name is an identifier for the logs in the customer’s log sink.</p>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>log_name is an identifier for the logs in the customer’s log sink.</p>
 <p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
 </div></td>
 </tr>
-<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-spec/type"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-spec-type"><strong>type</strong></p>
-<a class="ansibleOptionLink" href="#return-spec/type" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/spec/type"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-spec-type"><strong>type</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/spec/type" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
 </div></td>
-<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>LogExportType encodes the cloud selection that we’re exporting to along with the cloud logging platform. Currently, each cloud has a single logging platform.</p>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>LogExportType encodes the cloud selection that we’re exporting to along with the cloud logging platform. Currently, each cloud has a single logging platform.</p>
 <p>Allowed: AWS_CLOUDWATCH┃GCP_CLOUD_LOGGING</p>
 <p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> success</p>
 </div></td>
 </tr>
-<tr class="row-even"><td><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-status"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-status"><strong>status</strong></p>
-<a class="ansibleOptionLink" href="#return-status" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/status"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-status"><strong>status</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/status" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
 </div></td>
-<td><div class="ansible-option-cell"><p>LogExportStatus encodes the possible states that a configuration can be in as it is created, deployed, and disabled.</p>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p>LogExportStatus encodes the possible states that a configuration can be in as it is created, deployed, and disabled.</p>
 <p>Allowed: DISABLED┃DISABLING┃DISABLE_FAILED┃ENABLED┃ENABLING┃ENABLE_FAILED</p>
 <p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
 </div></td>
 </tr>
-<tr class="row-odd"><td><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-updated_at"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-updated-at"><strong>updated_at</strong></p>
-<a class="ansibleOptionLink" href="#return-updated_at" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+<tr class="row-even"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/updated_at"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-updated-at"><strong>updated_at</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/updated_at" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
 </div></td>
-<td><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
 </div></td>
 </tr>
-<tr class="row-even"><td><div class="ansible-option-cell">
-<div class="ansibleOptionAnchor" id="return-user_message"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-user-message"><strong>user_message</strong></p>
-<a class="ansibleOptionLink" href="#return-user_message" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
+<tr class="row-odd"><td><div class="ansible-option-indent"></div><div class="ansible-option-cell">
+<div class="ansibleOptionAnchor" id="return-logexport/user_message"></div><p class="ansible-option-title" id="ansible-collections-fabiog1901-cockroachdb-cc-logexport-info-module-return-logexport-user-message"><strong>user_message</strong></p>
+<a class="ansibleOptionLink" href="#return-logexport/user_message" title="Permalink to this return value"></a><p class="ansible-option-type-line"><span class="ansible-option-type">string</span></p>
 </div></td>
-<td><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
+<td><div class="ansible-option-indent-desc"></div><div class="ansible-option-cell"><p class="ansible-option-line"><span class="ansible-option-returned-bold">Returned:</span> always</p>
 </div></td>
 </tr>
 </tbody>
@@ -358,7 +366,7 @@ see <a class="reference internal" href="#ansible-collections-fabiog1901-cockroac
           
 
 <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="cc_databases_info_module.html" class="btn btn-neutral float-left" title="fabiog1901.cockroachdb.cc_databases_info module – List databases for a cluster." accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cc_invoices_info_module.html" class="btn btn-neutral float-left" title="fabiog1901.cockroachdb.cc_invoices_info module – List invoices for a given organization." accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="cc_regions_info_module.html" class="btn btn-neutral float-right" title="fabiog1901.cockroachdb.cc_regions_info module – List the regions available for new clusters and nodes." accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
