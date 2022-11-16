@@ -74,6 +74,8 @@
                   "0": p3.8xlarge
             azure:
               "0":
+                "0":
+                  "0": Standard_D16s_v3
                 "1":
                   "1": Standard_B1s
                   "2": Standard_B1ms
@@ -86,46 +88,44 @@
                   "8": Standard_D2s_v3
                   "16": Standard_E2s_v3
                   high_cpu: Standard_F2s_v2
-                  default: Standard_D2s_v3
+                  "0": Standard_D2s_v3
                   high_mem: Standard_E2s_v3
                 "4":
                   "8": Standard_F4s_v2
                   "16": Standard_D4s_v3
                   "32": Standard_E4s_v3
                   high_cpu: Standard_F4s_v2
-                  default: Standard_D4s_v3
+                  "0": Standard_D4s_v3
                   high_mem: Standard_E4s_v3
                 "8":
                   "16": Standard_F8s_v2
                   "32": Standard_D8s_v3
                   "64": Standard_E8s_v3
                   high_cpu: Standard_F8s_v2
-                  default: Standard_D8s_v3
+                  "0": Standard_D8s_v3
                   high_mem: Standard_E8s_v3
                 "16":
                   "32": Standard_F16s_v2
                   "64": Standard_D16s_v3
                   "128": Standard_E16s_v3
                   high_cpu: Standard_F16s_v2
-                  default: Standard_D16s_v3
+                  "0": Standard_D16s_v3
                   high_mem: Standard_E16s_v3
                 "32":
                   "64": Standard_F32s_v2
                   "128": Standard_D32s_v3
                   "256": Standard_E32s_v3
                   high_cpu: Standard_F32s_v2
-                  default: Standard_D32s_v3
+                  "0": Standard_D32s_v3
                   high_mem: Standard_E32s_v3
-                default:
-                  default: Standard_D16s_v3
               "1":
+                "0": Standard_NC6
                 "6":
-                  default: Standard_NC6
-                default: Standard_NC6
+                  "0": Standard_NC6
               "4":
+                "0": Standard_NC24r
                 "24":
-                  default: Standard_NC24r
-                default: Standard_NC24r
+                  "0": Standard_NC24r
             gcp:
               "0":
                 "0":
@@ -182,7 +182,7 @@
       fail:
         # msg: "state is absent, will quit here!"
       when: state == 'absent'
-    
+
     - name: Wait for SSH to come up
       wait_for:
         host: "{{ item.public_ip }}"
@@ -197,12 +197,12 @@
         # id
         name: "{{ item.public_ip }}"
         id: "{{ item.id }}"
-        
+
         # locality
         cloud: "{{ item.cloud }}"
         region: "{{ item.region }}"
         zone: "{{ item.zone }}"
-        
+
         # addresses
         public_hostname: "{{ item.public_hostname }}"
         public_ip: "{{ item.public_ip }}"
@@ -218,15 +218,11 @@
 
       loop: "{{ instances.out }}"
 
-    # - template:
-    #     src: inventory.j2
-    #     dest: "{{ deployment_id }}.ini"
-    
-    - name: print Ansible inventory for reference
-      debug:
-        msg:
-          - "PRINT GROUPS MAGIC VARIABLE"
-          - "{{ groups }}"      
+    - name: save cluster list of servers
+      template:
+        src: inventory_simple.j2
+        dest: "{{ deployment_id }}.ini"
+
   tags:
     - infra
     - cloud_instance
@@ -364,7 +360,7 @@
         mode: "0644"
       when: cockroachdb_krb
   tags:
-   - app
+    - app
 
 - name: COPY CRT+KEY TO APP SERVERS
   hosts: app
@@ -493,7 +489,11 @@
             ('region', 'asia-south1', 19.075984, 72.877656),
             ('region', 'asia-southeast2', -6.2075, 106.8449),
             ('region', 'asia-northeast2', 34.8172, 135.4976),
-            ('region', 'southamerica-east1', -23.55052, -46.633309);"
+            ('region', 'southafricanorth', -27.049240, 29.172484),
+            ('region', 'me-west1', 32.075206, 35.030164),
+            ('region', 'southamerica-west1', -33.442004, -70.426019),
+            ('region', 'southamerica-east1', -23.55052, -46.633309)
+            ;"
 
     - name: cockroachdb - add license
       run_once: yes
@@ -526,30 +526,3 @@
       when: item.is_admin
   tags:
     - app
-
-#############
-#  GROUPS   #
-#############
-- name: print Ansible inventory for reference
-  hosts: localhost
-  gather_facts: no
-  become: no
-  tasks:
-    - name: PRINT GROUPS MAGIC VARIABLE
-      debug:
-        msg:
-          - "{{ groups }}"
-
-    - name: Print Load Balancer details
-      debug:
-        msg:
-          - "LOAD BALANCERS"
-          - "-------------------------------------"
-          - "{{ hostvars[item].cloud }}"
-          - "{{ hostvars[item].public_ip }}"
-          - "{{ hostvars[item].private_ip }}"
-          - "{{ hostvars[item].public_hostname }}"
-          - "{{ hostvars[item].private_hostname }}"
-          - "-"
-      loop: "{{ groups['haproxy'] }}"
-      when: groups['haproxy'] is defined

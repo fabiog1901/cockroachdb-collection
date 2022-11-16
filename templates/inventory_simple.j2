@@ -1,0 +1,8 @@
+{% for item in groups %}
+{% if item in ['haproxy', 'cockroachdb'] %}
+[{{item}}]
+{% for entry in groups[item] %}
+{{ entry }} {{ hostvars[entry].cloud }} {{ hostvars[entry].region }}
+{% endfor %}
+{% endif %}
+{% endfor %}

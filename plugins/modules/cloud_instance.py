@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import random
 import threading
 import uuid
 
@@ -38,7 +39,6 @@ ch.setFormatter(formatter)
 
 # add ch to logger
 logger.addHandler(ch)
-
 
 
 DOCUMENTATION = '''
@@ -625,7 +625,9 @@ class CloudInstance:
                      (cluster_name, group['group_name'], x))
 
         gcpzone = '-'.join([group['region'], group['zone']])
-        instance_name = '-'.join(['i'] + str(uuid.uuid4()).split('-')[3:])
+
+        instance_name = self.deployment_id + '-' + str(random.randint(0, 1e16))
+
         instance_client = google.cloud.compute_v1.InstancesClient()
 
         # volumes
@@ -772,8 +774,8 @@ class CloudInstance:
             client = ComputeManagementClient(
                 credential, self.azure_subscription_id)
 
-            prefix = '-'.join([self.deployment_id, cluster_name,
-                               group['group_name'], str(x)])
+            instance_name = self.deployment_id + \
+                '-' + str(random.randint(0, 1e16))
 
             def get_type(x):
                 return {
@@ -789,9 +791,10 @@ class CloudInstance:
             x: dict
 
             for i, x in enumerate(group['volumes']['data']):
+
                 poller = client.disks.begin_create_or_update(
                     self.azure_resource_group,
-                    prefix + '-disk-' + str(i),
+                    instance_name + '-disk-' + str(i),
                     {
                         "location": group['region'],
                         "sku": {
@@ -809,7 +812,7 @@ class CloudInstance:
 
                 disk = {
                     "lun": i,
-                    "name": prefix + '-disk-' + str(i),
+                    "name": instance_name + '-disk-' + str(i),
                     "create_option": "Attach",
                     "delete_option": "Delete" if x.get('delete_on_termination', True) else "Detach",
                     "managed_disk": {
@@ -832,7 +835,7 @@ class CloudInstance:
 
             poller = client.virtual_machines.begin_create_or_update(
                 self.azure_resource_group,
-                prefix,
+                instance_name,
                 {
                     "location": group['region'],
                     "tags": {
@@ -863,7 +866,7 @@ class CloudInstance:
                         "vm_size": self.__get_instance_type(group),
                     },
                     "os_profile": {
-                        "computer_name": prefix,
+                        "computer_name": instance_name,
                         "admin_username": group['user'],
                         "linux_configuration": {
                             "ssh": {
@@ -880,19 +883,19 @@ class CloudInstance:
                         "network_api_version": "2021-04-01",
                         "network_interface_configurations": [
                             {
-                                "name": prefix+'-nic',
+                                "name": instance_name+'-nic',
                                 "delete_option": "delete",
                                 "network_security_group": nsg,
                                 "ip_configurations": [
                                     {
-                                        "name": prefix+'-nic',
+                                        "name": instance_name+'-nic',
                                         "subnet": {
                                             "id": "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s" %
                                             (self.azure_subscription_id, self.azure_resource_group,
                                              group['vpc_id'], group['subnet'])
                                         },
                                         "public_ip_address_configuration": {
-                                            "name": prefix+'-pip',
+                                            "name": instance_name+'-pip',
                                             "sku": {
                                                 "name": "Standard",
                                                 "tier": "Regional"

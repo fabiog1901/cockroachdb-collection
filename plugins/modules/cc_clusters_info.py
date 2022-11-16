@@ -261,11 +261,12 @@ import json
 
 class Client:
 
-    def __init__(self, api_client_args: ApiClientArgs, show_inactive: bool, cluster_id: str):
+    def __init__(self, api_client_args: ApiClientArgs, show_inactive: bool, cluster_id: str, show_nodes: bool):
 
         # vars
         self.cluster_id = cluster_id
         self.show_inactive = show_inactive
+        self.show_nodes = show_nodes
 
         # return vars
         self.out: str = ''
@@ -319,6 +320,7 @@ def main():
         # module specific arguments
         show_inactive=dict(type='bool', default=False),
         cluster_id=dict(type='str'),
+        show_inactive=dict(type='bool', default=False),
     ),
         supports_check_mode=True,
     )
@@ -335,7 +337,8 @@ def main():
                 module.params['api_client'].get('verify_ssl', None)
             ),
             module.params['show_inactive'],
-            module.params['cluster_id']
+            module.params['cluster_id'],
+            module.params['show_nodes']
         ).run()
 
     except Exception as e:
