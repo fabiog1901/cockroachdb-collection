@@ -4,7 +4,6 @@
 # Copyright: Contributors to the Ansible project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-
 DOCUMENTATION = '''
 module: cc_clusters_info
 
@@ -23,6 +22,11 @@ options:
   show_inactive:
     description:
       - If true, show clusters that have been deleted or failed to initialize.
+    default: false
+    type: bool
+  show_nodes:
+    description:
+     - If true, show nodes that compose this cluster. Only available for CUSTOM or DEDICATED clusters.
     default: false
     type: bool
   cluster_id:
@@ -89,6 +93,7 @@ EXAMPLES = '''
 - name: list CC clusters in my org
   fabiog1901.cockroachdb.cc_clusters_info:
     show_inactive: no
+    show_nodes: no
     api_client:
       api_version: '2022-09-20'
     register: out
@@ -172,6 +177,22 @@ clusters:
       description: ''
       type: str
       returned: always
+    nodes:
+      description: 
+        - list of nodes that make up the cluster. 
+        - Only returned if show_nodes is True.
+        - Only returned for Dedicated or Custom cluster. Not for Serverless clusters.
+      type: list
+      contains:
+        name:
+          description: ''
+          type: str
+        region_name:
+          description: ''
+          type: str
+        status:
+          description: "Allowed: LIVE┃NOT_READY"
+          type: str
     operation_status:
       description:
         - "Allowed: CLUSTER_STATUS_UNSPECIFIED┃CRDB_MAJOR_UPGRADE_RUNNING┃CRDB_MAJOR_UPGRADE_FAILED┃CRDB_MAJOR_ROLLBACK_RUNNING┃CRDB_MAJOR_ROLLBACK_FAILED┃CRDB_PATCH_RUNNING┃CRDB_PATCH_FAILED┃CRDB_SCALE_RUNNING┃CRDB_SCALE_FAILED┃MAINTENANCE_RUNNING┃CRDB_INSTANCE_UPDATE_RUNNING┃CRDB_INSTANCE_UPDATE_FAILED┃CRDB_EDIT_CLUSTER_RUNNING┃CRDB_EDIT_CLUSTER_FAILED┃CRDB_CMEK_OPERATION_RUNNING┃CRDB_CMEK_OPERATION_FAILED┃TENANT_RESTORE_RUNNING┃TENANT_RESTORE_FAILED┃CRDB_LOG_EXPORT_OPERATION_RUNNING┃CRDB_LOG_EXPORT_OPERATION_FAILED"
@@ -251,13 +272,14 @@ clusters:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
+
 from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import APIClient, ApiClientArgs
 
-from cockroachdb_cloud_client.models.list_available_regions_response import ListAvailableRegionsResponse
-from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_provider import CockroachCloudListAvailableRegionsProvider
-from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_get_cluster
-
 import json
+from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_get_cluster, cockroach_cloud_list_cluster_nodes
+from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_provider import CockroachCloudListAvailableRegionsProvider
+from cockroachdb_cloud_client.models.list_available_regions_response import ListAvailableRegionsResponse
+
 
 class Client:
 
@@ -276,6 +298,18 @@ class Client:
         self.client = APIClient(api_client_args)
 
     def run(self):
+
+        def fetch_nodes_by_cluster_id(cluster_id):
+
+            r = cockroach_cloud_list_cluster_nodes.sync_detailed(
+                client=self.client,
+                cluster_id=cluster_id)
+
+            if r.status_code == 200:
+                return json.loads(r.content)['nodes']
+            else:
+                raise Exception({'status_code': r.status_code,
+                                 'content': r.parsed})
 
         clusters: list = []
 
@@ -299,6 +333,13 @@ class Client:
             raise Exception({'status_code': r.status_code,
                             'content': r.parsed})
 
+        if self.show_nodes:
+            for x in clusters:
+                if x['plan'] == 'SERVERLESS':
+                    x['nodes'] = []
+                else:
+                    x['nodes'] = fetch_nodes_by_cluster_id(x['id'])
+
         return clusters, False
 
 
@@ -320,7 +361,7 @@ def main():
         # module specific arguments
         show_inactive=dict(type='bool', default=False),
         cluster_id=dict(type='str'),
-        show_inactive=dict(type='bool', default=False),
+        show_nodes=dict(type='bool', default=False),
     ),
         supports_check_mode=True,
     )
