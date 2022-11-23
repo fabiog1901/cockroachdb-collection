@@ -251,7 +251,7 @@ clusters:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import APIClient, ApiClientArgs
+from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs
 
 from cockroachdb_cloud_client.models.cluster import Cluster
 from cockroachdb_cloud_client.models.create_cluster_request import CreateClusterRequest
@@ -260,6 +260,7 @@ from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_prov
 from cockroachdb_cloud_client.models.dedicated_cluster_create_specification import DedicatedClusterCreateSpecification
 from cockroachdb_cloud_client.models.serverless_cluster_create_specification import ServerlessClusterCreateSpecification
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_create_cluster
+from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters
 
 import json
 
@@ -288,6 +289,20 @@ class Client:
 
     def run(self):
 
+        def fetch_cluster_by_name(name: str):
+            r = cockroach_cloud_list_clusters.sync_detailed(
+                  client=self.client,
+                  show_inactive=False)
+
+            if r.status_code == 200:
+                clusters = json.loads(r.content)['clusters']
+                for x in clusters:
+                    if x['name'] == name:
+                        return x
+                raise Exception({'content': f'could not fetch cluster details for cluster name: {name}'})
+            else:
+                raise AnsibleException(r)
+            
         cluster = {}
         
         se = ServerlessClusterCreateSpecification(regions=self.regions, spend_limit=self.spend_limit) 
@@ -300,16 +315,20 @@ class Client:
         if r.status_code == 200:
             cluster = json.loads(r.content)
         else:
+            # 409 means the cluster already exists
+            if r.status_code == 409:
+                return fetch_cluster_by_name(self.name), False
+              
             raise Exception({'status_code': r.status_code,
                             'content': json.loads(r.content)})
 
-        return cluster, False
+        return cluster, True
 
 
 def main():
     module = AnsibleModule(argument_spec=dict(
         # api client arguments
-        api_client=dict(
+        api_client=dict(default={},
             type='dict',
             cc_key=dict(type='str', no_log=True),
             api_version=dict(type='str'),

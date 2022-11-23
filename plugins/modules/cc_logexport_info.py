@@ -22,7 +22,7 @@ author: "Cockroach Labs"
 options:
   cluster_id:
     description:
-      - The UUID of the cluster
+      - The UUID or name of the cluster.
     type: str
 
   api_client:
@@ -139,7 +139,7 @@ logexport:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import APIClient, ApiClientArgs
+from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import get_cluster_id, AnsibleException,APIClient, ApiClientArgs
 
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_get_log_export_info
 
@@ -149,15 +149,16 @@ class Client:
 
     def __init__(self, api_client_args: ApiClientArgs, cluster_id: str):
 
+        # cc client
+        self.client = APIClient(api_client_args)
+        
         # vars
-        self.cluster_id = cluster_id
+        self.cluster_id = get_cluster_id(self.client, cluster_id)
 
         # return vars
         self.out: str = ''
         self.changed: bool = False
 
-        # cc client
-        self.client = APIClient(api_client_args)
 
     def run(self):
 
@@ -171,8 +172,7 @@ class Client:
         if r.status_code == 200:
             logexport = json.loads(r.content)
         else:
-            raise Exception({'status_code': r.status_code,
-                            'content': r.parsed})
+            raise AnsibleException(r)
 
         return logexport, False
 
@@ -180,7 +180,7 @@ class Client:
 def main():
     module = AnsibleModule(argument_spec=dict(
         # api client arguments
-        api_client=dict(
+        api_client=dict(default={},
             type='dict',
             cc_key=dict(type='str', no_log=True),
             api_version=dict(type='str'),

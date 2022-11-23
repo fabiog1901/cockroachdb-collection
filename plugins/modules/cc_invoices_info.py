@@ -323,7 +323,7 @@ invoices:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import APIClient, ApiClientArgs
+from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs
 
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_invoices, cockroach_cloud_get_invoice
 
@@ -364,8 +364,7 @@ class Client:
             else:
                 invoices = json.loads(r.content)['invoices']
         else:
-            raise Exception({'status_code': r.status_code,
-                            'content': r.parsed})
+            raise AnsibleException(r)
 
         return invoices, False
 
@@ -373,7 +372,7 @@ class Client:
 def main():
     module = AnsibleModule(argument_spec=dict(
         # api client arguments
-        api_client=dict(
+        api_client=dict(default={},
             type='dict',
             cc_key=dict(type='str', no_log=True),
             api_version=dict(type='str'),

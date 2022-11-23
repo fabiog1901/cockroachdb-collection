@@ -5,8 +5,12 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 import os
+import json
+import uuid
 from cockroachdb_cloud_client.client import AuthenticatedClient
+from cockroachdb_cloud_client.types import Response
 from dataclasses import dataclass
+from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_get_cluster
 
 API_VERSION = 'latest'
 SCHEME = 'https'
@@ -14,8 +18,7 @@ HOST = 'cockroachlabs.cloud'
 PORT = '443'
 PATH = ''
 VERIFY_SSL = True
-    
-    
+
 
 @dataclass
 class ApiClientArgs():
@@ -26,6 +29,13 @@ class ApiClientArgs():
     port: str
     path: str
     verify_ssl: str
+
+
+class AnsibleException(Exception):
+    def __init__(self, r: Response):
+        super().__init__({'status_code': r.status_code,
+                          'content': json.loads(r.content)}
+                         )
 
 
 class APIClient(AuthenticatedClient):
@@ -56,3 +66,53 @@ class APIClient(AuthenticatedClient):
             verify_ssl=verify_ssl,
             timeout=20.0
         )
+
+def is_valid_uuid(value):
+    try:
+        uuid.UUID(str(value))
+        return True
+    except ValueError:
+        return False
+   
+
+def get_cluster_id(client: APIClient, name: str):
+    if is_valid_uuid(name):
+        return name
+    else:
+        r = cockroach_cloud_list_clusters.sync_detailed(
+                client=client,
+                show_inactive=False)
+
+        if r.status_code == 200:
+            for x in r.parsed.clusters:
+                if x.name == name:
+                    return x.id
+            raise Exception({'content': f'could not fetch cluster details for cluster name: {name}'})
+        else:
+            raise AnsibleException(r)
+        
+def fetch_cluster_by_id_or_name(client: APIClient, name: str):
+    
+    if is_valid_uuid(name):
+        r = cockroach_cloud_get_cluster.sync_detailed(
+                client=client,
+                cluster_id=name
+            )
+        
+        if r.status_code == 200:
+            return json.loads(r.content)
+        else:
+            raise AnsibleException(r)
+    else:
+        r = cockroach_cloud_list_clusters.sync_detailed(
+                client=client,
+                show_inactive=False)
+
+        if r.status_code == 200:
+            clusters = json.loads(r.content)['clusters']
+            for x in clusters:
+                if x['name'] == name:
+                    return x
+            raise Exception({'content': f'could not fetch cluster details for cluster name: {name}'})
+        else:
+            raise AnsibleException(r)

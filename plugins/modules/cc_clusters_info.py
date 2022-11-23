@@ -31,7 +31,7 @@ options:
     type: bool
   cluster_id:
     description:
-      - The UUID of the cluster you want to get information for.
+      - The UUID or name of the cluster you want to get information for.
       - Omit for a full list of clusters under the organization.
     type: str
 
@@ -273,17 +273,16 @@ clusters:
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import APIClient, ApiClientArgs
+from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
 
 import json
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_get_cluster, cockroach_cloud_list_cluster_nodes
-from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_provider import CockroachCloudListAvailableRegionsProvider
-from cockroachdb_cloud_client.models.list_available_regions_response import ListAvailableRegionsResponse
+
 
 
 class Client:
 
-    def __init__(self, api_client_args: ApiClientArgs, show_inactive: bool, cluster_id: str, show_nodes: bool):
+    def __init__(self, api_client_args: ApiClientArgs, cluster_id: str, show_inactive: bool, show_nodes: bool):
 
         # vars
         self.cluster_id = cluster_id
@@ -308,30 +307,25 @@ class Client:
             if r.status_code == 200:
                 return json.loads(r.content)['nodes']
             else:
-                raise Exception({'status_code': r.status_code,
-                                 'content': r.parsed})
+                raise AnsibleException(r)
 
         clusters: list = []
-
+        
         if self.cluster_id:
-            r = cockroach_cloud_get_cluster.sync_detailed(
-                client=self.client,
-                cluster_id=self.cluster_id
-            )
+            clusters = [fetch_cluster_by_id_or_name(client=self.client, name=self.cluster_id)]
 
         else:
             r = cockroach_cloud_list_clusters.sync_detailed(
                 client=self.client,
                 show_inactive=self.show_inactive)
 
-        if r.status_code == 200:
-            if self.cluster_id:
-                clusters = [json.loads(r.content)]
+            if r.status_code == 200:
+                if self.cluster_id:
+                    clusters = [json.loads(r.content)]
+                else:
+                    clusters = json.loads(r.content)['clusters']
             else:
-                clusters = json.loads(r.content)['clusters']
-        else:
-            raise Exception({'status_code': r.status_code,
-                            'content': r.parsed})
+                raise AnsibleException(r)
 
         if self.show_nodes:
             for x in clusters:
@@ -346,7 +340,7 @@ class Client:
 def main():
     module = AnsibleModule(argument_spec=dict(
         # api client arguments
-        api_client=dict(
+        api_client=dict(default={},
             type='dict',
             cc_key=dict(type='str', no_log=True),
             api_version=dict(type='str'),
@@ -359,8 +353,8 @@ def main():
         ),
 
         # module specific arguments
-        show_inactive=dict(type='bool', default=False),
         cluster_id=dict(type='str'),
+        show_inactive=dict(type='bool', default=False),
         show_nodes=dict(type='bool', default=False),
     ),
         supports_check_mode=True,
@@ -377,8 +371,8 @@ def main():
                 module.params['api_client'].get('path', None),
                 module.params['api_client'].get('verify_ssl', None)
             ),
-            module.params['show_inactive'],
             module.params['cluster_id'],
+            module.params['show_inactive'],
             module.params['show_nodes']
         ).run()
 

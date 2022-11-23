@@ -144,7 +144,7 @@ from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_av
 from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_provider import CockroachCloudListAvailableRegionsProvider
 from cockroachdb_cloud_client.models.list_available_regions_response import ListAvailableRegionsResponse
 
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import APIClient, ApiClientArgs
+from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs
 
 
 
@@ -182,8 +182,7 @@ class Client:
             if r.status_code == 200:
                 regions += json.loads(r.content)['regions']
             else:
-                raise Exception({'status_code': r.status_code,
-                                'content': r.parsed})
+                raise AnsibleException(r)
 
         return regions, False
 
@@ -191,7 +190,7 @@ class Client:
 def main():
     module = AnsibleModule(argument_spec=dict(
         # api client arguments
-        api_client=dict(
+        api_client=dict(default={},
             type='dict',
             cc_key=dict(type='str', no_log=True),
             api_version=dict(type='str'),
