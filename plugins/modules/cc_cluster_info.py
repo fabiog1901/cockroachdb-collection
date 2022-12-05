@@ -5,7 +5,7 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 DOCUMENTATION = '''
-module: cc_clusters_info
+module: cc_cluster_info
 
 short_description: List clusters owned by an organization.
 
@@ -91,7 +91,7 @@ requirements:
 
 EXAMPLES = '''
 - name: list CC clusters in my org
-  fabiog1901.cockroachdb.cc_clusters_info:
+  fabiog1901.cockroachdb.cc_cluster_info:
     show_inactive: no
     show_nodes: no
     api_client:

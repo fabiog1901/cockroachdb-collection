@@ -6,12 +6,12 @@
 
 
 DOCUMENTATION = '''
-module: cc_users_info
+module: cc_database_info
 
-short_description: List SQL users for a cluster.
+short_description: List databases for a cluster.
 
 description:
-  - List SQL users for a cluster.
+  - List databases for a cluster.
   - A Cockroach Cloud Service Account API Key is required.
   - Export the key as environment variable 'CC_KEY' or pass it on module invokation
 
@@ -80,16 +80,16 @@ requirements:
 '''
 
 EXAMPLES = '''
-- name: list users for my cluster
-  fabiog1901.cockroachdb.cc_users_info:
+- name: list databases for my cluster
+  fabiog1901.cockroachdb.cc_database_info:
     cluster_id: 9592afea-2bf8-4dc1-95ec-9369b7f684ca
     api_client:
       api_version: '2022-09-20'
 '''
 
 RETURN = '''
-users:
-  description: A list of users
+databases:
+  description: A list of databases
   type: list
   elements: dict
   returned: always
@@ -98,11 +98,21 @@ users:
       description: ''
       type: str
       returned: always
+    table_count:
+      description: ''
+      type: int
+      returned: always
     
   sample:
-    users:
-    - name: chad
-    - name: florence
+    databases:
+      - name: bank
+        table_count: 1
+      - name: mw_payments_db
+        table_count: 18
+      - name: defaultdb
+        table_count: 2
+      - name: movr
+        table_count: 6
 '''
 
 
@@ -110,7 +120,7 @@ users:
 from ansible.module_utils.basic import AnsibleModule
 from ..module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs
 
-from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_sql_users
+from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_databases
 
 import json
 
@@ -127,23 +137,23 @@ class Client:
         # return vars
         self.out: str = ''
         self.changed: bool = False
-
+        
 
     def run(self):
 
-        users: list = []
+        databases: list = []
 
-        r = cockroach_cloud_list_sql_users.sync_detailed(
+        r = cockroach_cloud_list_databases.sync_detailed(
             client=self.client,
             cluster_id=self.cluster_id
         )
 
         if r.status_code == 200:
-            users = json.loads(r.content)['users']
+            databases = json.loads(r.content)['databases']
         else:
             raise AnsibleException(r)
 
-        return users, False
+        return databases, False
 
 
 def main():
@@ -185,7 +195,7 @@ def main():
         module.fail_json(meta=module.params, msg=e.args)
 
     # Outputs
-    module.exit_json(meta=module.params, changed=changed, users=out)
+    module.exit_json(meta=module.params, changed=changed, databases=out)
 
 
 if __name__ == '__main__':

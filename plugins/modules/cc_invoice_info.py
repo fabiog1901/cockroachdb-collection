@@ -6,7 +6,7 @@
 
 
 DOCUMENTATION = '''
-module: cc_invoices_info
+module: cc_invoice_info
 
 short_description: List invoices for a given organization.
 
@@ -80,7 +80,7 @@ requirements:
 
 EXAMPLES = '''
 - name: list my bills
-  fabiog1901.cockroachdb.cc_invoices_info:
+  fabiog1901.cockroachdb.cc_invoice_info:
     # invoice_id:  
     api_client:
       api_version: '2022-09-20'
