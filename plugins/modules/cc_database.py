@@ -91,8 +91,8 @@ requirements:
 '''
 
 EXAMPLES = '''
-- name: list CC clusters in my org
-  fabiog1901.cockroachdb.cc_clusters_info:
+- name: create a database
+  fabiog1901.cockroachdb.cc_database:
     state: present
     cluster_id: dev_cluster
     name: dev_db
