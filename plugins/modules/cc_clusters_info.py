@@ -273,7 +273,7 @@ clusters:
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
 
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
+from ..module_utils.utils import AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
 
 import json
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_get_cluster, cockroach_cloud_list_cluster_nodes

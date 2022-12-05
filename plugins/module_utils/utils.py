@@ -67,52 +67,56 @@ class APIClient(AuthenticatedClient):
             timeout=20.0
         )
 
+
 def is_valid_uuid(value):
     try:
         uuid.UUID(str(value))
         return True
     except ValueError:
         return False
-   
+
 
 def get_cluster_id(client: APIClient, name: str):
     if is_valid_uuid(name):
         return name
     else:
         r = cockroach_cloud_list_clusters.sync_detailed(
-                client=client,
-                show_inactive=False)
+            client=client,
+            show_inactive=False)
 
         if r.status_code == 200:
             for x in r.parsed.clusters:
                 if x.name == name:
                     return x.id
-            raise Exception({'content': f'could not fetch cluster details for cluster name: {name}'})
+            raise Exception(
+                {'content': f'could not fetch cluster details for cluster name: {name}'})
         else:
             raise AnsibleException(r)
-        
+
+
 def fetch_cluster_by_id_or_name(client: APIClient, name: str):
-    
+
     if is_valid_uuid(name):
         r = cockroach_cloud_get_cluster.sync_detailed(
-                client=client,
-                cluster_id=name
-            )
-        
+            client=client,
+            cluster_id=name
+        )
+
         if r.status_code == 200:
             return json.loads(r.content)
         else:
             raise AnsibleException(r)
     else:
         r = cockroach_cloud_list_clusters.sync_detailed(
-                client=client,
-                show_inactive=False)
+            client=client,
+            show_inactive=False)
 
         if r.status_code == 200:
             clusters = json.loads(r.content)['clusters']
             for x in clusters:
                 if x['name'] == name:
                     return x
-            raise Exception({'content': f'could not fetch cluster details for cluster name: {name}'})
+            raise Exception(
+                {'content': f'could not fetch cluster details for cluster name: {name}'})
         else:
             raise AnsibleException(r)

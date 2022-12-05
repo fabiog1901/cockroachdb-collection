@@ -144,7 +144,7 @@ from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_av
 from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_provider import CockroachCloudListAvailableRegionsProvider
 from cockroachdb_cloud_client.models.list_available_regions_response import ListAvailableRegionsResponse
 
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs
+from ..module_utils.utils import AnsibleException, APIClient, ApiClientArgs
 
 
 

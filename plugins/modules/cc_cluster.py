@@ -251,7 +251,8 @@ clusters:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs
+from ..module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
+# from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
 
 from cockroachdb_cloud_client.models.cluster import Cluster
 from cockroachdb_cloud_client.models.create_cluster_request import CreateClusterRequest
@@ -259,71 +260,125 @@ from cockroachdb_cloud_client.models.create_cluster_request import CreateCluster
 from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_provider import CockroachCloudListAvailableRegionsProvider
 from cockroachdb_cloud_client.models.dedicated_cluster_create_specification import DedicatedClusterCreateSpecification
 from cockroachdb_cloud_client.models.serverless_cluster_create_specification import ServerlessClusterCreateSpecification
+from cockroachdb_cloud_client.models.dedicated_hardware_create_specification import DedicatedHardwareCreateSpecification
+from cockroachdb_cloud_client.models.dedicated_machine_type_specification import DedicatedMachineTypeSpecification
+from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_get_cluster
+
+from cockroachdb_cloud_client.models.dedicated_cluster_create_specification_region_nodes import DedicatedClusterCreateSpecificationRegionNodes
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_create_cluster
-from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters
+from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_delete_cluster
 
 import json
+import time
 
 class Client:
 
-    def __init__(self, api_client_args: ApiClientArgs, name: str, 
-                 provider: str, plan: str, regions: list, spend_limit: int):
+    def __init__(self, api_client_args: ApiClientArgs, 
+                 state: str, name: str, provider: str, plan: str, regions: list, 
+                 spend_limit: int,
+                 version: str, instance_type: str, vcpus: int, disk_iops: int, disk_size: int, wait: bool):
 
+        # cc client
+        self.client = APIClient(api_client_args)
+        
         # vars
+        self.state = state
         self.name = name
         self.plan = plan
         self.regions = regions
-        self.spend_limit = spend_limit
         
         if provider.lower() == 'gcp':
             self.provider = CockroachCloudListAvailableRegionsProvider.GCP
         else:
             self.provider = CockroachCloudListAvailableRegionsProvider.AWS
-            
+        
+        # --> serverless
+        self.spend_limit = spend_limit
+        # --> dedicated
+        self.version=version
+        self.instance_type=instance_type
+        self.vcpus=vcpus
+        self.disk_iops=disk_iops
+        self.disk_size=disk_size
+        self.wait=wait
+        
         # return vars
         self.out: str = ''
         self.changed: bool = False
 
-        # cc client
-        self.client = APIClient(api_client_args)
-
     def run(self):
 
-        def fetch_cluster_by_name(name: str):
-            r = cockroach_cloud_list_clusters.sync_detailed(
-                  client=self.client,
-                  show_inactive=False)
-
-            if r.status_code == 200:
-                clusters = json.loads(r.content)['clusters']
-                for x in clusters:
-                    if x['name'] == name:
-                        return x
-                raise Exception({'content': f'could not fetch cluster details for cluster name: {name}'})
-            else:
-                raise AnsibleException(r)
-            
         cluster = {}
         
-        se = ServerlessClusterCreateSpecification(regions=self.regions, spend_limit=self.spend_limit) 
-        spec = CreateClusterSpecification(serverless=se)
-        c = CreateClusterRequest(name=self.name, provider=self.provider, spec=spec)
+        def create_cluster(c: CreateClusterRequest, wait: bool):
+            r = cockroach_cloud_create_cluster.sync_detailed(
+                    client=self.client, json_body=c)
+
+            if r.status_code == 200:
+                cluster = json.loads(r.content)
+            else:
+                # 409 means the cluster already exists
+                if r.status_code == 409:
+                    return fetch_cluster_by_id_or_name(self.client, self.name), False
+                raise AnsibleException(r)
+
+            if wait:
+                while r.parsed.state == 'CREATING':
+                    r = cockroach_cloud_get_cluster.sync_detailed(
+                        client=self.client, cluster_id=r.parsed.id)
+                    time.sleep(60) 
+                
+                
+            return cluster, True
         
-        r = cockroach_cloud_create_cluster.sync_detailed(
-            client=self.client, json_body=c)
+        
+        if self.state == 'present':
+            if self.plan == 'serverless':
+                sless_create_spec = ServerlessClusterCreateSpecification(regions=self.regions, spend_limit=self.spend_limit) 
+                spec = CreateClusterSpecification(serverless=sless_create_spec)                
+            else: # plan==dedicated
+                if self.instance_type:
+                    ded_machine = DedicatedMachineTypeSpecification(machine_type=self.instance_type)
+                elif self.vcpus:
+                    ded_machine = DedicatedMachineTypeSpecification(num_virtual_cpus=self.vcpus)
+                else:
+                    raise Exception({"content": "Either one among 'vcpus' or 'instance_type' should be specified."})
+                
+                ded_hw = DedicatedHardwareCreateSpecification(machine_spec=ded_machine, 
+                                                              storage_gib=self.disk_size, 
+                                                              disk_iops=self.disk_iops)
+                
+                regions = DedicatedClusterCreateSpecificationRegionNodes().from_dict(self.regions)
+                
+                ded_create_spec = DedicatedClusterCreateSpecification(hardware=ded_hw, region_nodes=regions, cockroach_version=self.version)
+                
+                spec = CreateClusterSpecification(dedicated=ded_create_spec)
 
-        if r.status_code == 200:
-            cluster = json.loads(r.content)
-        else:
-            # 409 means the cluster already exists
-            if r.status_code == 409:
-                return fetch_cluster_by_name(self.name), False
-              
-            raise Exception({'status_code': r.status_code,
-                            'content': json.loads(r.content)})
+            return create_cluster(CreateClusterRequest(name=self.name, provider=self.provider, spec=spec), self.wait)
+            
+        else: # state=absent
+            
+            # check if cluster still exists or was already deleted
+            id: str = None
+            try:
+                id = get_cluster_id(self.client, self.name)
+            except AnsibleException as e:
+                raise e
+            except Exception as e:
+                pass
+            
+            if id: # cluster exists, delete it
+                r = cockroach_cloud_delete_cluster.sync_detailed(
+                    client=self.client, cluster_id=id)
 
-        return cluster, True
+                if r.status_code == 200:
+                    cluster = json.loads(r.content)
+                else:                
+                    raise AnsibleException(r)
 
+                return cluster, True
+            
+            return cluster, False
 
 def main():
     module = AnsibleModule(argument_spec=dict(
@@ -341,11 +396,20 @@ def main():
         ),
 
         # module specific arguments
+        state=dict(type='str', choices=['present', 'absent'], default='present'),
         name=dict(type='str', required=True),
         provider=dict(type='str', choices=['AWS', 'GCP'], default='AWS'),
         plan=dict(type='str', choices=['dedicated', 'serverless'], default='serverless'),
-        regions=dict(type='list', elements='str', required=True),
-        spend_limit=dict(type='int', default=0)
+        regions=dict(type='raw', required=True),
+        # serverless
+        spend_limit=dict(type='int', default=0),
+        # dedicated
+        version=dict(type='str', required=False),
+        instance_type=dict(type='str', required=False),
+        vcpus=dict(type='int', required=False),
+        disk_iops=dict(type='int', default=0),
+        disk_size=dict(type='int', default=0),
+        wait=dict(type='bool', default=False)
     ),
         supports_check_mode=False,
     )
@@ -361,11 +425,18 @@ def main():
                 module.params['api_client'].get('path', None),
                 module.params['api_client'].get('verify_ssl', None)
             ),
+            module.params['state'],
             module.params['name'],
             module.params['provider'],
             module.params['plan'],
             module.params['regions'],
             module.params['spend_limit'],
+            module.params['version'],
+            module.params['instance_type'],
+            module.params['vcpus'],
+            module.params['disk_iops'],
+            module.params['disk_size'],
+            module.params['wait']
         ).run()
 
     except Exception as e:

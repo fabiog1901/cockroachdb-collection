@@ -21,7 +21,7 @@ authors:
 
 ### OPTIONAL but strongly recommended
 # A short summary description of the collection
-description: Deploy CockroachDB
+description: Ansible Roles and Modules to deploy CockroachDB
 
 # Either a single license or a list of licenses for content inside of a collection. Ansible Galaxy currently only
 # accepts L(SPDX,https://spdx.org/licenses/) licenses. This key is mutually exclusive with 'license_file'
@@ -43,7 +43,7 @@ tags: []
 dependencies: {}
 
 # The URL of the originating SCM repository
-repository: https://github.com/fabiog1901/cockroachdb-ansible-collection
+repository: https://github.com/fabiog1901/cockroachdb-collection
 
 # The URL to any online docs
 documentation: http://docs.example.com

@@ -118,7 +118,7 @@ databases:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs
+from ..module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs
 
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_databases
 
