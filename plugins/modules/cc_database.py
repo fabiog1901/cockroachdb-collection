@@ -21,20 +21,19 @@ author: "Cockroach Labs"
 
 options:
   state:
-    description:
-      - present or absent.
+    description: "Allowed values: present, absent."
     default: present
     type: str
   cluster_id:
-    description:
-      - The UUID or the name of the cluster you want to get information for.
-      - Omit for a full list of clusters under the organization.
+    description: The UUID or the name of the cluster you want to get information for.
     type: str
+    required: True
   name:
     description: The database name
     type: str
+    required: True
   rename_to:
-    description: the new database name
+    description: The new database name
     type: str
   
   api_client:
