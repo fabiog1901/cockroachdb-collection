@@ -112,7 +112,12 @@ EXAMPLES = '''
 RETURN = '''
 user:
   description: ''
-  type: str
+  type: dict
+  elements: dict
+  contains:
+    name:
+      description: ''
+      type: str
 '''
 
 
