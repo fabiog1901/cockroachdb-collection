@@ -242,16 +242,18 @@ class Client:
 def main():
     module = AnsibleModule(argument_spec=dict(
         # api client arguments
-        api_client=dict(default={},
-            type='dict', 
-            cc_key=dict(type='str', no_log=True),
-            api_version=dict(type='str'),
-
-            scheme=dict(type='str'),
-            host=dict(type='str'),
-            port=dict(type='str'),
-            path=dict(type='str'),
-            verify_ssl=dict(type='bool'),
+        api_client=dict(
+            default={},
+            type='dict',
+            options=dict(
+                cc_key=dict(type='str', no_log=True),
+                api_version=dict(type='str'),
+                scheme=dict(type='str'),
+                host=dict(type='str'),
+                port=dict(type='str'),
+                path=dict(type='str'),
+                verify_ssl=dict(type='bool'),
+            )
         ),
 
         # module specific arguments

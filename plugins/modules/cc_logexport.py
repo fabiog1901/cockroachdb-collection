@@ -362,7 +362,6 @@ def main():
             options=dict(
                 cc_key=dict(type='str', no_log=True),
                 api_version=dict(type='str'),
-
                 scheme=dict(type='str'),
                 host=dict(type='str'),
                 port=dict(type='str'),
