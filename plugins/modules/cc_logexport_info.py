@@ -142,6 +142,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ..module_utils.utils import get_cluster_id, AnsibleException,APIClient, ApiClientArgs
 
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_get_log_export_info
+from cockroachdb_cloud_client.models.log_export_cluster_info import LogExportClusterInfo
 
 import json
 
@@ -162,7 +163,7 @@ class Client:
 
     def run(self):
 
-        logexport: list = []
+        logexport: LogExportClusterInfo
 
         r = cockroach_cloud_get_log_export_info.sync_detailed(
             client=self.client,
@@ -170,11 +171,13 @@ class Client:
         )
 
         if r.status_code == 200:
-            logexport = json.loads(r.content)
+            logexport = r.parsed
+        elif r.status_code == 404 and json.loads(r.content)['code'] == 5:
+            logexport = LogExportClusterInfo()
         else:
             raise AnsibleException(r)
 
-        return logexport, False
+        return logexport.to_dict(), False
 
 
 def main():
