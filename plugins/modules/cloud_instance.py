@@ -1,9 +1,10 @@
+#!/usr/bin/python
+
 import json
 import logging
 import os
 import random
 import threading
-import uuid
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
@@ -45,12 +46,12 @@ DOCUMENTATION = '''
 ---
 module: cloud_instance
 
-short_description: Creates, updates and deletes public cloud instances
+short_description: Creates, deletes public cloud instances
 
 version_added: "1.0.0"
 
 description:
-    - Creates, updates and deletes public cloud instances
+    - Creates, deletes public cloud instances
 
 options:
     state:

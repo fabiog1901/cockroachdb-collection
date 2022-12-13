@@ -315,8 +315,6 @@ class Client:
                 cluster_id=self.cluster_id,
                 json_body=c)
 
-            
-                    
             if r.status_code == 200:
                 if self.wait:
                     while r.parsed.status == LogExportStatus.ENABLING:
