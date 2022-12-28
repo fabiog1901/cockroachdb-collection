@@ -193,7 +193,7 @@
       loop: "{{ instances.out }}"
 
     - name: add instances to inventory groups
-      add_host:
+      ansible.builtin.add_host:
         # id
         name: "{{ item.public_ip }}"
         id: "{{ item.id }}"
@@ -218,10 +218,19 @@
 
       loop: "{{ instances.out }}"
 
-    - name: save cluster list of servers
+    - name: add extra_vars as hostvars variables
+      ansible.builtin.add_host: '{{ {"name": item.public_ip} | combine(item.extra_vars) }}'
+      loop: "{{ instances.out }}"
+
+    - name: save cluster list of hosts
+      template:
+        src: inventory.j2
+        dest: "{{ deployment_id }}.ini"
+
+    - name: save simplified list of hosts
       template:
         src: inventory_simple.j2
-        dest: "{{ deployment_id }}.ini"
+        dest: "{{ deployment_id }}.simple.ini"
 
   tags:
     - infra
