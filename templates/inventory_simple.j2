@@ -2,7 +2,7 @@
 {% if item not in ['all', 'ungrouped'] %}
 [{{item}}]
 {% for entry in groups[item] %}
-{{ entry }} {{ hostvars[entry].cloud }} {{ hostvars[entry].region }}
+{{ entry }} ==> {{ hostvars[entry].public_ip }} {{ hostvars[entry].cloud }} {{ hostvars[entry].region }}
 {% endfor %}
 
 {% endif %}

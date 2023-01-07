@@ -1,16 +1,4 @@
 ---
-- name: pull cloud provider specific vars
-  include_vars: "{{ cloud }}.yml"
-
-- name: Run cloud provider specific tasks
-  include_tasks: "cloud/{{ cloud }}.yml"
-
-- name: pull os family specific vars
-  include_vars: "{{ ansible_facts.os_family | lower }}.yml"
-
-- name: Run os_family specific tasks
-  include_tasks: "os_family/{{ ansible_facts.os_family | lower }}.yml"
-
 - name: Add the user cockroach
   ansible.builtin.user:
     name: cockroach
@@ -82,7 +70,7 @@
         dest: /var/lib/cockroach/certs
         mode: "0400"
       loop: "{{ cockroachdb_certificates_clients }}"
-    
+
     - name: copy client certificates key
       copy:
         src: "{{ cockroachdb_certificates_dir }}/certs/client.{{ item }}.key"
@@ -90,35 +78,7 @@
         mode: "0400"
       loop: "{{ cockroachdb_certificates_clients }}"
 
-- when: cloud != 'azure'
-  block:
-    - name: install chrony/ntp
-      package:
-        name: "{{ ntp_package_name }}"
-        state: latest
-        
-    - name: Add the preferred Chrony/NTP server
-      lineinfile:
-        path: "{{ ntp_conf }}"
-        line: "{{ ntp_server }}"
-
-    - name: restart chronyd/ntp
-      service:
-        name: "{{ ntp_deamon }}"
-        state: restarted
-
-- name: Update VM swappiness
-  sysctl:
-    name: vm.swappiness
-    value: "0"
-    state: present
-    reload: yes
-
-- name: Set timezone to UTC
-  timezone:
-    name: UTC
-
-- name: find attached disks 
+- name: find attached disks
   shell: |
     lsblk -o NAME,TYPE,SIZE -p -n -b -s | \
       awk '$NF ~ /[1-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/' | \
@@ -131,12 +91,6 @@
 
 - when: _disks.stdout_lines | length > 0
   block:
-    - name: Create a ext4 filesystem
-      community.general.filesystem:
-        fstype: ext4
-        dev: "{{ item }}"
-      loop: "{{ _disks.stdout_lines }}"
-
     - name: Create default CockroachDB directory
       file:
         path: "/mnt/cockroach{{ idx }}"
@@ -161,7 +115,7 @@
 
     - name: Reset permissions on mounted directory /mnt/cockroach
       file:
-        path: '/mnt/cockroach{{ idx }}'
+        path: "/mnt/cockroach{{ idx }}"
         state: directory
         mode: "0755"
         owner: cockroach
@@ -169,7 +123,7 @@
       loop: "{{ _disks.stdout_lines }}"
       loop_control:
         index_var: idx
-    
+
     - name: reset cockroachdb_store
       set_fact:
         cockroachdb_store: []
@@ -180,7 +134,7 @@
       loop: "{{ _disks.stdout_lines }}"
       loop_control:
         index_var: idx
-    
+
 - name: copy systemd template cockroachdb.service
   template:
     src: cockroachdb.service.j2

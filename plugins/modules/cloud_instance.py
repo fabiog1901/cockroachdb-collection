@@ -627,7 +627,7 @@ class CloudInstance:
 
         gcpzone = '-'.join([group['region'], group['zone']])
 
-        instance_name = self.deployment_id + '-' + str(random.randint(0, 1e16))
+        instance_name = self.deployment_id + '-' + str(random.randint(0, 1e16)).zfill(16)
 
         instance_client = google.cloud.compute_v1.InstancesClient()
 
@@ -776,7 +776,7 @@ class CloudInstance:
                 credential, self.azure_subscription_id)
 
             instance_name = self.deployment_id + \
-                '-' + str(random.randint(0, 1e16))
+                '-' + str(random.randint(0, 1e16)).zfill(16)
 
             def get_type(x):
                 return {

@@ -195,7 +195,7 @@
     - name: add instances to inventory groups
       ansible.builtin.add_host:
         # id
-        name: "{{ item.public_ip }}"
+        name: "{{ item.private_hostname }}"
         id: "{{ item.id }}"
 
         # locality
@@ -211,6 +211,8 @@
 
         # tags
         ansible_user: "{{ item.ansible_user }}"
+        ansible_host: "{{ item.public_ip }}"
+        # ansible_become: true # ugly
         groups: "{{ item.inventory_groups }}"
         cluster_name: "{{ item.cluster_name }}"
         group_name: "{{ item.group_name }}"
@@ -219,7 +221,7 @@
       loop: "{{ instances.out }}"
 
     - name: add extra_vars as hostvars variables
-      ansible.builtin.add_host: '{{ {"name": item.public_ip} | combine(item.extra_vars) }}'
+      ansible.builtin.add_host: '{{ {"name": item.private_hostname } | combine(item.extra_vars) }}'
       loop: "{{ instances.out }}"
 
     - name: save cluster list of hosts
@@ -277,6 +279,17 @@
   tags:
     - platform
     - certificates
+
+- name: CONFIGURE OS
+  hosts: cockroachdb
+  gather_facts: yes
+  become: yes
+  tasks:
+    - include_role:
+        name: fabiog1901.cockroachdb.config_os
+  tags:
+    - platform
+    - config_os
 
 - name: DEPLOY COCKROACHDB
   hosts: cockroachdb

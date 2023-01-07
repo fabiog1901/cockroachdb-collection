@@ -1,3 +1,4 @@
+---
 - name: disable azure ntp
   shell: |
     curl -O https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus

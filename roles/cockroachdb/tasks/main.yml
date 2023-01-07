@@ -19,6 +19,7 @@
   when: cockroachdb_deployment_type != 'install only'
 
 - name: Init Cluster
+  run_once: yes
   shell: |
     cockroach init \
     {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
