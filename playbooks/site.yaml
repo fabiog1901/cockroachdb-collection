@@ -532,7 +532,7 @@
         cockroach sql \
           --host={{ cockroachdb_advertise_addr }} \
           {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
-          -e "CREATE USER {{ item.name }} WITH password {{ (item.password == None )| ternary('NULL' , '\"' + item.password|string + '\"') }};"
+          -e "CREATE USER {{ item.name }} WITH password {{ (item.password == None )| ternary('NULL' ,  "'" + item.password + "'" ) }};"
       loop: "{{ dbusers }}"
       failed_when: result.rc != 0 and 'already exists' not in result.stderr
       register: result

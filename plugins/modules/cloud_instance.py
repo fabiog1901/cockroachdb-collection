@@ -627,7 +627,8 @@ class CloudInstance:
 
         gcpzone = '-'.join([group['region'], group['zone']])
 
-        instance_name = self.deployment_id + '-' + str(random.randint(0, 1e16)).zfill(16)
+        instance_name = self.deployment_id + '-' + \
+            str(random.randint(0, 1e16)).zfill(16)
 
         instance_client = google.cloud.compute_v1.InstancesClient()
 
@@ -660,19 +661,20 @@ class CloudInstance:
             disk = google.cloud.compute_v1.AttachedDisk()
             init_params = google.cloud.compute_v1.AttachedDiskInitializeParams()
             init_params.disk_size_gb = int(x.get('size', 100))
+            disk.device_name = f'disk-{i}'
 
             # local-ssd peculiarities
             if get_type(x.get('type', 'standard_ssd')) == 'local-ssd':
-                disk.type = "SCRATCH"
+                disk.type_ = "SCRATCH"
                 disk.interface = "NVME"
                 del init_params.disk_size_gb
+                disk.device_name = f'local-ssd-{i}'
 
             init_params.disk_type = 'zones/%s/diskTypes/%s' % (
                 gcpzone, get_type(x.get('type', 'standard_ssd')))
 
             disk.initialize_params = init_params
             disk.auto_delete = x.get('delete_on_termination', True)
-            disk.device_name = f'disk-{i}'
 
             vols.append(disk)
 
