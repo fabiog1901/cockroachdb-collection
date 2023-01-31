@@ -574,7 +574,7 @@ class CloudInstance:
         tags.append({'Key': 'group_name', 'Value': group['group_name']})
         tags.append({'Key': 'inventory_groups',
                     'Value': str(group['inventory_groups'] + [cluster_name])})
-        tags.append({'Key': 'extra_vars', 'Value': str(
+        tags.append({'Key': 'extra_vars', 'Value': json.dumps(
             group.get('extra_vars', {}))})
 
         if group.get('role', None):
@@ -847,7 +847,7 @@ class CloudInstance:
                         "cluster_name": cluster_name,
                         "group_name": group['group_name'],
                         "inventory_groups": str(group['inventory_groups'] + [cluster_name]),
-                        "extra_vars": str(group.get('extra_vars', {}))
+                        "extra_vars": json.dumps(group.get('extra_vars', {}))
                     },
                     "storage_profile": {
                         "osDisk": {

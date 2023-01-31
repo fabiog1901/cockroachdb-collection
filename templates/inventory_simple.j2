@@ -1,9 +1,0 @@
-{% for item in groups %}
-{% if item not in ['all', 'ungrouped'] %}
-[{{item}}]
-{% for entry in groups[item] %}
-{{ entry }} ==> {{ hostvars[entry].public_ip }} {{ hostvars[entry].cloud }} {{ hostvars[entry].region }}
-{% endfor %}
-
-{% endif %}
-{% endfor %}

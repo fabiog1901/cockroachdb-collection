@@ -221,17 +221,35 @@
       loop: "{{ instances.out }}"
 
     - name: add extra_vars as hostvars variables
-      ansible.builtin.add_host: '{{ {"name": item.private_hostname } | combine(item.extra_vars) }}'
+      ansible.builtin.add_host: '{{ {"name": item.private_hostname } | combine(item.extra_vars | from_json ) }}'
       loop: "{{ instances.out }}"
 
     - name: save cluster list of hosts
-      template:
-        src: inventory.j2
+      ansible.builtin.copy:
+        content: |
+          {% for item in groups %}
+          {% if item not in ['all', 'ungrouped'] %}
+          [{{item}}]
+          {% for entry in groups[item] %}
+          {{ entry }} ansible_host={{ hostvars[entry].ansible_host }} cloud={{ hostvars[entry].cloud }} cluster_name={{ hostvars[entry].cluster_name }}  group_name={{ hostvars[entry].group_name }} id={{ hostvars[entry].id }} region={{ hostvars[entry].region }} zone={{ hostvars[entry].zone }} private_hostname={{ hostvars[entry].private_hostname }} private_ip={{ hostvars[entry].private_ip }} public_hostname={{ hostvars[entry].public_hostname }} public_ip={{ hostvars[entry].public_ip }} ansible_user={{ hostvars[entry].ansible_user }} extra_vars="{{ hostvars[entry].extra_vars }}"
+          {% endfor %}
+
+          {% endif %}
+          {% endfor %}
         dest: "{{ deployment_id }}.ini"
 
     - name: save simplified list of hosts
-      template:
-        src: inventory_simple.j2
+      ansible.builtin.copy:
+        content: |
+          {% for item in groups %}
+          {% if item not in ['all', 'ungrouped'] %}
+          [{{item}}]
+          {% for entry in groups[item] %}
+          {{ entry }} ==> {{ hostvars[entry].public_ip }} {{ hostvars[entry].cloud }} {{ hostvars[entry].region }}
+          {% endfor %}
+
+          {% endif %}
+          {% endfor %}
         dest: "{{ deployment_id }}.simple.ini"
 
   tags:
