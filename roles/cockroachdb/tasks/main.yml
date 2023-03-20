@@ -23,7 +23,7 @@
   shell: |
     cockroach init \
     {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
-    --host={{ cockroachdb_join[0] }}:{{ cockroachdb_port }}
+    --host={{ cockroachdb_join[0] }}:{{ cockroachdb_rpc_port }}
   register: result
   failed_when: result.rc != 0 and 'cluster has already been initialized' not in result.stderr and 'unable to bootstrap due to internal error' not in result.stderr
   when: cockroachdb_deployment_type == 'standard'

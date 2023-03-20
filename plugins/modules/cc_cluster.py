@@ -333,9 +333,16 @@ class Client:
         
         
         if self.state == 'present':
+          
+            # TODO check if cluster already exists, and if new specs are same as current specs.
+            current_cluster = fetch_cluster_by_id_or_name(self.client, self.name)
+          
+            # if specs are same, pass and changed=false
+            # else, update accordingly and changed=true
             if self.plan == 'serverless':
                 sless_create_spec = ServerlessClusterCreateSpecification(regions=self.regions, spend_limit=self.spend_limit) 
                 spec = CreateClusterSpecification(serverless=sless_create_spec)                
+            
             else: # plan==dedicated
                 if self.instance_type:
                     ded_machine = DedicatedMachineTypeSpecification(machine_type=self.instance_type)
@@ -361,12 +368,14 @@ class Client:
             # check if cluster still exists or was already deleted
             id: str = None
             try:
+                #TODO not sure this is right...
                 id = get_cluster_id(self.client, self.name)
             except AnsibleException as e:
                 raise e
             except Exception as e:
                 pass
             
+            #TODO not necessarly exists as id could be a uuid. need to send call to server 
             if id: # cluster exists, delete it
                 r = cockroach_cloud_delete_cluster.sync_detailed(
                     client=self.client, cluster_id=id)

@@ -259,7 +259,8 @@ cockroachdb_join:
   - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].public_ip }}"
   - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].public_ip }}"
   - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].public_ip }}"
-cockroachdb_port: 26257
+cockroachdb_sql_port: 26257
+cockroachdb_rpc_port: 26357
 cockroachdb_http_addr_ip: "0.0.0.0"
 cockroachdb_http_addr_port: "8080"
 cockroachdb_cache: '.25'

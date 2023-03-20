@@ -635,12 +635,12 @@ class CloudInstance:
         # volumes
         def get_type(x):
             return {
-                'standard_ssd': 'pd-balanced',
-                'premium_ssd': 'pd-ssd',
+                'standard_ssd': 'pd-ssd',
+                'premium_ssd': 'pd-extreme',
                 'local_ssd': 'local-ssd',
                 'standard_hdd': 'pd-standard',
                 'premium_hdd': 'pd-standard'
-            }.get(x, 'pd-standard')
+            }.get(x, 'pd-ssd')
 
         vols = []
 
@@ -997,6 +997,9 @@ class CloudInstance:
     # =========================================================================
 
     def __get_instance_type(self, group):
+        if 'instance_type' in group:
+            return group['instance_type']
+        
         # instance type
         gpu = str(group['instance'].get('gpu', '0'))
         cpu = str(group['instance'].get('cpu', '0'))
