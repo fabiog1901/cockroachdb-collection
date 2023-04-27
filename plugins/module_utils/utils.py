@@ -102,7 +102,7 @@ def get_cluster_id(client: APIClient, name: str):
             raise AnsibleException(r)
 
 
-def fetch_cluster_by_id_or_name(client: APIClient, name: str) -> Cluster | None:
+def fetch_cluster_by_id_or_name(client: APIClient, name: str):
 
     if is_valid_uuid(name):
         r = cockroach_cloud_get_cluster.sync_detailed(
