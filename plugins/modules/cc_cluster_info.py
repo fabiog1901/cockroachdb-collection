@@ -378,11 +378,12 @@ def main():
             module.params['show_nodes']
         ).run()
 
+        # Outputs
+        module.exit_json(meta=module.params, changed=changed, clusters=out)
+        
     except Exception as e:
         module.fail_json(meta=module.params, msg=e.args)
 
-    # Outputs
-    module.exit_json(meta=module.params, changed=changed, clusters=out)
 
 
 if __name__ == '__main__':

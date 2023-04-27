@@ -220,9 +220,9 @@
 
       loop: "{{ instances.out }}"
 
-    - name: add extra_vars as hostvars variables
-      ansible.builtin.add_host: '{{ {"name": item.private_hostname } | combine(item.extra_vars | from_json ) }}'
-      loop: "{{ instances.out }}"
+    # - name: add extra_vars as hostvars variables
+    #   ansible.builtin.add_host: '{{ {"name": item.private_hostname } | combine(item.extra_vars | from_json ) }}'
+    #   loop: "{{ instances.out }}"
 
     - name: save cluster list of hosts
       ansible.builtin.copy:

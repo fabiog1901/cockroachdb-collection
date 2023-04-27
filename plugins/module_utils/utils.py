@@ -11,6 +11,7 @@ from cockroachdb_cloud_client.client import AuthenticatedClient
 from cockroachdb_cloud_client.types import Response
 from dataclasses import dataclass
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_get_cluster
+from cockroachdb_cloud_client.models.cluster import Cluster
 
 API_VERSION = 'latest'
 SCHEME = 'https'
@@ -18,7 +19,8 @@ HOST = 'cockroachlabs.cloud'
 PORT = '443'
 PATH = ''
 VERIFY_SSL = True
-
+RAISE_ON_UNEXPECTED_STATUS = True
+FOLLOW_REDIRECTS = True
 
 @dataclass
 class ApiClientArgs():
@@ -29,6 +31,8 @@ class ApiClientArgs():
     port: str
     path: str
     verify_ssl: str
+    raise_on_unexpected_status: bool = True
+    follow_redirects: bool = True
 
 
 class AnsibleException(Exception):
@@ -56,6 +60,8 @@ class APIClient(AuthenticatedClient):
         port = api_client_args.port if api_client_args.port else PORT
         path = api_client_args.path if api_client_args.path else PATH
         verify_ssl = api_client_args.verify_ssl if api_client_args.verify_ssl else VERIFY_SSL
+        raise_on_unexpected_status = api_client_args.raise_on_unexpected_status if api_client_args.raise_on_unexpected_status else RAISE_ON_UNEXPECTED_STATUS
+        follow_redirects = api_client_args.follow_redirects if api_client_args.follow_redirects else FOLLOW_REDIRECTS
 
         base_url = "%s://%s:%s%s" % (scheme, host, port, path)
 
@@ -64,7 +70,9 @@ class APIClient(AuthenticatedClient):
             token=token,
             headers={"cc-version": api_version},
             verify_ssl=verify_ssl,
-            timeout=20.0
+            timeout=20.0,
+            raise_on_unexpected_status=raise_on_unexpected_status,
+            follow_redirects=follow_redirects
         )
 
 
@@ -84,7 +92,7 @@ def get_cluster_id(client: APIClient, name: str):
             client=client,
             show_inactive=False)
 
-        if r.status_code == 200:
+        if r.status_code == 200 and r.parsed:
             for x in r.parsed.clusters:
                 if x.name == name:
                     return x.id
@@ -94,7 +102,7 @@ def get_cluster_id(client: APIClient, name: str):
             raise AnsibleException(r)
 
 
-def fetch_cluster_by_id_or_name(client: APIClient, name: str):
+def fetch_cluster_by_id_or_name(client: APIClient, name: str) -> Cluster | None:
 
     if is_valid_uuid(name):
         r = cockroach_cloud_get_cluster.sync_detailed(
@@ -102,8 +110,8 @@ def fetch_cluster_by_id_or_name(client: APIClient, name: str):
             cluster_id=name
         )
 
-        if r.status_code == 200:
-            return json.loads(r.content)
+        if r.status_code == 200 and r.parsed:
+            return r.parsed #json.loads(r.content)
         else:
             raise AnsibleException(r)
     else:
@@ -111,12 +119,19 @@ def fetch_cluster_by_id_or_name(client: APIClient, name: str):
             client=client,
             show_inactive=False)
 
-        if r.status_code == 200:
-            clusters = json.loads(r.content)['clusters']
-            for x in clusters:
-                if x['name'] == name:
+        
+        if r.status_code == 200 and r.parsed:
+            
+            for x in r.parsed.clusters:
+                if x.name == name:
                     return x
-            raise Exception(
-                {'content': f'could not fetch cluster details for cluster name: {name}'})
+            
+            # clusters = json.loads(r.content)['clusters']
+            
+            # for x in clusters:
+            #     if x['name'] == name:
+            #         return x
+            # raise Exception(
+            #     {'content': f'could not fetch cluster details for cluster name: {name}'})
         else:
             raise AnsibleException(r)

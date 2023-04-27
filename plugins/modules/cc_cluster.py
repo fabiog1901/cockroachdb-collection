@@ -251,15 +251,14 @@ clusters:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ..module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
-# from ansible_collections.fabiog1901.cockroachdb.plugins.module_utils.utils import AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
+from ...plugins.module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
 
-from cockroachdb_cloud_client.models.cluster import Cluster
 from cockroachdb_cloud_client.models.create_cluster_request import CreateClusterRequest
-from cockroachdb_cloud_client.models.create_cluster_request import CreateClusterSpecification
-from cockroachdb_cloud_client.models.cockroach_cloud_list_available_regions_provider import CockroachCloudListAvailableRegionsProvider
+from cockroachdb_cloud_client.models.create_cluster_specification import CreateClusterSpecification
+from cockroachdb_cloud_client.models.cloud_provider_type import CloudProviderType
 from cockroachdb_cloud_client.models.dedicated_cluster_create_specification import DedicatedClusterCreateSpecification
 from cockroachdb_cloud_client.models.serverless_cluster_create_specification import ServerlessClusterCreateSpecification
+from cockroachdb_cloud_client.models.usage_limits import UsageLimits
 from cockroachdb_cloud_client.models.dedicated_hardware_create_specification import DedicatedHardwareCreateSpecification
 from cockroachdb_cloud_client.models.dedicated_machine_type_specification import DedicatedMachineTypeSpecification
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_get_cluster
@@ -274,8 +273,8 @@ import time
 class Client:
 
     def __init__(self, api_client_args: ApiClientArgs, 
-                 state: str, name: str, provider: str, plan: str, regions: list, 
-                 spend_limit: int,
+                 state: str, name: str, provider: str, plan: str, regions: list[str], 
+                 request_unit_limit: int, storage_mib_limit: int    ,
                  version: str, instance_type: str, vcpus: int, disk_iops: int, disk_size: int, wait: bool):
 
         # cc client
@@ -288,12 +287,13 @@ class Client:
         self.regions = regions
         
         if provider.lower() == 'gcp':
-            self.provider = CockroachCloudListAvailableRegionsProvider.GCP
+            self.provider = CloudProviderType.GCP
         else:
-            self.provider = CockroachCloudListAvailableRegionsProvider.AWS
+            self.provider = CloudProviderType.AWS
         
         # --> serverless
-        self.spend_limit = spend_limit
+        self.request_unit_limit = request_unit_limit
+        self.storage_mib_limit = storage_mib_limit
         # --> dedicated
         self.version=version
         self.instance_type=instance_type
@@ -311,6 +311,7 @@ class Client:
         cluster = {}
         
         def create_cluster(c: CreateClusterRequest, wait: bool):
+
             r = cockroach_cloud_create_cluster.sync_detailed(
                     client=self.client, json_body=c)
 
@@ -340,33 +341,47 @@ class Client:
             # if specs are same, pass and changed=false
             # else, update accordingly and changed=true
             if self.plan == 'serverless':
-                sless_create_spec = ServerlessClusterCreateSpecification(regions=self.regions, spend_limit=self.spend_limit) 
+                sless_create_spec = ServerlessClusterCreateSpecification(
+                  regions=self.regions, 
+                  usage_limits= UsageLimits(
+                    request_unit_limit=str(self.request_unit_limit),
+                    storage_mib_limit=str(self.storage_mib_limit)
+                  )
+                ) 
+                
+                
                 spec = CreateClusterSpecification(serverless=sless_create_spec)                
             
             else: # plan==dedicated
-                if self.instance_type:
-                    ded_machine = DedicatedMachineTypeSpecification(machine_type=self.instance_type)
-                elif self.vcpus:
-                    ded_machine = DedicatedMachineTypeSpecification(num_virtual_cpus=self.vcpus)
-                else:
-                    raise Exception({"content": "Either one among 'vcpus' or 'instance_type' should be specified."})
+                pass
+                # if self.instance_type:
+                #     ded_machine = DedicatedMachineTypeSpecification(machine_type=self.instance_type)
+                # elif self.vcpus:
+                #     ded_machine = DedicatedMachineTypeSpecification(num_virtual_cpus=self.vcpus)
+                # else:
+                #     raise Exception({"content": "Either one among 'vcpus' or 'instance_type' should be specified."})
                 
-                ded_hw = DedicatedHardwareCreateSpecification(machine_spec=ded_machine, 
-                                                              storage_gib=self.disk_size, 
-                                                              disk_iops=self.disk_iops)
+                # ded_hw = DedicatedHardwareCreateSpecification(machine_spec=ded_machine, 
+                #                                               storage_gib=self.disk_size, 
+                #                                               disk_iops=self.disk_iops)
                 
-                regions = DedicatedClusterCreateSpecificationRegionNodes().from_dict(self.regions)
+                # regions = DedicatedClusterCreateSpecificationRegionNodes().from_dict(self.regions)
                 
-                ded_create_spec = DedicatedClusterCreateSpecification(hardware=ded_hw, region_nodes=regions, cockroach_version=self.version)
+                # ded_create_spec = DedicatedClusterCreateSpecification(
+                #   hardware=ded_hw, 
+                #   region_nodes=regions, 
+                #   cockroach_version=self.version
+                #   )
                 
-                spec = CreateClusterSpecification(dedicated=ded_create_spec)
+                # spec = CreateClusterSpecification(dedicated=ded_create_spec)
+
 
             return create_cluster(CreateClusterRequest(name=self.name, provider=self.provider, spec=spec), self.wait)
             
         else: # state=absent
             
             # check if cluster still exists or was already deleted
-            id: str = None
+            id: str = ''
             try:
                 #TODO not sure this is right...
                 id = get_cluster_id(self.client, self.name)
@@ -413,7 +428,8 @@ def main():
         plan=dict(type='str', choices=['dedicated', 'serverless'], default='serverless'),
         regions=dict(type='raw', required=True),
         # serverless
-        spend_limit=dict(type='int', default=0),
+        request_unit_limit=dict(type='int', default=0),
+        storage_mib_limit=dict(type='int', default=0),
         # dedicated
         version=dict(type='str', required=False),
         instance_type=dict(type='str', required=False),
@@ -441,7 +457,8 @@ def main():
             module.params['provider'],
             module.params['plan'],
             module.params['regions'],
-            module.params['spend_limit'],
+            module.params['request_unit_limit'],
+            module.params['storage_mib_limit'],
             module.params['version'],
             module.params['instance_type'],
             module.params['vcpus'],
@@ -450,11 +467,11 @@ def main():
             module.params['wait']
         ).run()
 
+        # Outputs
+        module.exit_json(meta=module.params, changed=changed, cluster=out)
+
     except Exception as e:
         module.fail_json(meta=module.params, msg=e.args)
-
-    # Outputs
-    module.exit_json(meta=module.params, changed=changed, cluster=out)
 
 
 if __name__ == '__main__':

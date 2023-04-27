@@ -261,7 +261,7 @@ class CloudInstance:
             "inventory_groups": json.loads(tags['inventory_groups']),
             "cluster_name": tags['cluster_name'],
             "group_name": tags['group_name'],
-            "extra_vars": json.loads(tags.get('extra_vars', '{}'))
+            "extra_vars": tags['extra_vars']
         }
 
     def __parse_azure_query(self, vm, private_ip, public_ip, public_hostname):
@@ -574,8 +574,7 @@ class CloudInstance:
         tags.append({'Key': 'group_name', 'Value': group['group_name']})
         tags.append({'Key': 'inventory_groups',
                     'Value': str(group['inventory_groups'] + [cluster_name])})
-        tags.append({'Key': 'extra_vars', 'Value': json.dumps(
-            group.get('extra_vars', {}))})
+        tags.append({'Key': 'extra_vars', 'Value': json.dumps(group.get('extra_vars', {}))})
 
         if group.get('role', None):
             role = {'Name': group['role']}
