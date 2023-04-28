@@ -781,12 +781,12 @@ class CloudInstance:
 
             def get_type(x):
                 return {
-                    'standard_ssd': 'Standard_LRS',
-                    'premium_ssd': 'Standard_LRS',
-                    'local_ssd': 'Standard_LRS',
+                    'standard_ssd': 'Premium_LRS',
+                    'premium_ssd': 'PremiumV2_LRS',
+                    'local_ssd': 'Premium_LRS',
                     'standard_hdd': 'Standard_LRS',
                     'premium_hdd': 'Standard_LRS'
-                }.get(x, 'pd-standard')
+                }.get(x, 'Premium_LRS')
 
             vols = []
             i: int
@@ -810,6 +810,8 @@ class CloudInstance:
 
                 )
 
+                    #     "diskIOPSReadWrite": "15000",
+                    # "diskMBpsReadWrite": "250"
                 data_disk = poller.result()
 
                 disk = {
