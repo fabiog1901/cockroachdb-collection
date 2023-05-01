@@ -94,11 +94,14 @@ EXAMPLES = '''
   fabiog1901.cockroachdb.cc_cluster_info:
     show_inactive: no
     show_nodes: no
+    api_client:
+      api_version: '2022-09-20'
+    register: out
 '''
 
 RETURN = '''
 clusters:
-  description: A list of clusters
+  description: A list of regions
   type: list
   elements: dict
   returned: always
@@ -270,36 +273,35 @@ clusters:
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
 
-from ..module_utils.utils import AnsibleException, APIClient, fetch_cluster_by_id_or_name
+from ..module_utils.utils import AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
 
 import json
-from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_list_cluster_nodes
+from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_clusters, cockroach_cloud_get_cluster, cockroach_cloud_list_cluster_nodes
 
 
-def main():
-    m = AnsibleModule(
-        argument_spec=dict(
-            cluster_id=dict(type='str'),
-            show_inactive=dict(type='bool', default=False),
-            show_nodes=dict(type='bool', default=False),
-            ),
-        supports_check_mode=True,
-        )
 
-    try:
-        
-        client = APIClient()
-                        
+class Client:
+
+    def __init__(self, api_client_args: ApiClientArgs, cluster_id: str, show_inactive: bool, show_nodes: bool):
+
         # vars
-        cluster_id: str | None = m.params['cluster_id'] # type: ignore
-        show_inactive: bool = m.params['show_inactive'] # type: ignore
-        show_nodes: bool = m.params['show_nodes'] # type: ignore
+        self.cluster_id = cluster_id
+        self.show_inactive = show_inactive
+        self.show_nodes = show_nodes
 
+        # return vars
+        self.out: str = ''
+        self.changed: bool = False
+
+        # cc client
+        self.client = APIClient(api_client_args)
+
+    def run(self):
 
         def fetch_nodes_by_cluster_id(cluster_id):
 
             r = cockroach_cloud_list_cluster_nodes.sync_detailed(
-                client=client,
+                client=self.client,
                 cluster_id=cluster_id)
 
             if r.status_code == 200:
@@ -309,34 +311,78 @@ def main():
 
         clusters: list = []
         
-        if cluster_id:
-            clusters.append(
-                fetch_cluster_by_id_or_name(client, cluster_id).to_dict()
-                )            
-            
+        if self.cluster_id:
+            clusters = [fetch_cluster_by_id_or_name(client=self.client, name=self.cluster_id)]
+
         else:
             r = cockroach_cloud_list_clusters.sync_detailed(
-                client=client,
-                show_inactive=show_inactive)
+                client=self.client,
+                show_inactive=self.show_inactive)
 
             if r.status_code == 200:
-                clusters = json.loads(r.content)['clusters']
+                if self.cluster_id:
+                    clusters = [json.loads(r.content)]
+                else:
+                    clusters = json.loads(r.content)['clusters']
             else:
                 raise AnsibleException(r)
 
-        if show_nodes:
+        if self.show_nodes:
             for x in clusters:
                 if x['plan'] == 'SERVERLESS':
                     x['nodes'] = []
                 else:
                     x['nodes'] = fetch_nodes_by_cluster_id(x['id'])
 
-    
+        return clusters, False
+
+
+def main():
+    module = AnsibleModule(argument_spec=dict(
+        # api client arguments
+        api_client=dict(
+            default={},
+            type='dict',
+            options=dict(
+                cc_key=dict(type='str', no_log=True),
+                api_version=dict(type='str'),
+                scheme=dict(type='str'),
+                host=dict(type='str'),
+                port=dict(type='str'),
+                path=dict(type='str'),
+                verify_ssl=dict(type='bool'),
+            )
+        ),
+
+        # module specific arguments
+        cluster_id=dict(type='str'),
+        show_inactive=dict(type='bool', default=False),
+        show_nodes=dict(type='bool', default=False),
+    ),
+        supports_check_mode=True,
+    )
+
+    try:
+        out, changed = Client(
+            ApiClientArgs(
+                module.params['api_client'].get('cc_key', None),
+                module.params['api_client'].get('api_version', None),
+                module.params['api_client'].get('scheme', None),
+                module.params['api_client'].get('host', None),
+                module.params['api_client'].get('port', None),
+                module.params['api_client'].get('path', None),
+                module.params['api_client'].get('verify_ssl', None)
+            ),
+            module.params['cluster_id'],
+            module.params['show_inactive'],
+            module.params['show_nodes']
+        ).run()
+
         # Outputs
-        m.exit_json(meta=m.params, changed=False, clusters=clusters)
+        module.exit_json(meta=module.params, changed=changed, clusters=out)
         
     except Exception as e:
-        m.fail_json(meta=m.params, msg=e.args)
+        module.fail_json(meta=module.params, msg=e.args)
 
 
 
