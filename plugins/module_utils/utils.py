@@ -64,7 +64,7 @@ def is_valid_uuid(value):
         return False
 
 
-def get_cluster_id(client: APIClient, name: str):
+def get_cluster_id_from_cluster_name(client: APIClient, name: str):
     if is_valid_uuid(name):
         return name
     else:
@@ -72,12 +72,12 @@ def get_cluster_id(client: APIClient, name: str):
             client=client,
             show_inactive=False)
 
-        if r.status_code == 200 and r.parsed:
-            for x in r.parsed.clusters:
-                if x.name == name:
-                    return x.id
-            raise Exception(
-                {'content': f'could not fetch cluster details for cluster name: {name}'})
+        if r.status_code == 200:
+            if r.parsed:
+                for x in r.parsed.clusters:
+                    if x.name == name:
+                        return x.id
+            return None
         else:
             raise AnsibleException(r)
 

@@ -251,7 +251,7 @@ clusters:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ...plugins.module_utils.utils import get_cluster_id, AnsibleException, APIClient, fetch_cluster_by_id_or_name
+from ...plugins.module_utils.utils import get_cluster_id_from_cluster_name, AnsibleException, APIClient, fetch_cluster_by_id_or_name
 
 from cockroachdb_cloud_client.models.create_cluster_request import CreateClusterRequest
 from cockroachdb_cloud_client.models.create_cluster_specification import CreateClusterSpecification
@@ -336,8 +336,9 @@ class Client:
         if self.state == 'present':
           
             # TODO check if cluster already exists, and if new specs are same as current specs.
-            current_cluster = fetch_cluster_by_id_or_name(self.client, self.name)
-          
+            cluster = fetch_cluster_by_id_or_name(self.client, self.name)
+            if cluster:
+                return cluster.to_dict(), False
             # if specs are same, pass and changed=false
             # else, update accordingly and changed=true
             if self.plan == 'serverless':
@@ -384,7 +385,7 @@ class Client:
             id: str = ''
             try:
                 #TODO not sure this is right...
-                id = get_cluster_id(self.client, self.name)
+                id = get_cluster_id_from_cluster_name(self.client, self.name)
             except AnsibleException as e:
                 raise e
             except Exception as e:

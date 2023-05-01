@@ -9,7 +9,7 @@ import json
 from cockroachdb_cloud_client.api.cockroach_cloud import cockroach_cloud_list_sql_users, cockroach_cloud_create_sql_user, cockroach_cloud_update_sql_user_password, cockroach_cloud_delete_sql_user
 from cockroachdb_cloud_client.models.cockroach_cloud_update_sql_user_password_update_sql_user_password_request import CockroachCloudUpdateSQLUserPasswordUpdateSQLUserPasswordRequest as upd_usr_req
 from cockroachdb_cloud_client.models.cockroach_cloud_create_sql_user_create_sql_user_request import CockroachCloudCreateSQLUserCreateSQLUserRequest as cr_usr_req
-from ..module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs
+from ..module_utils.utils import get_cluster_id_from_cluster_name, AnsibleException, APIClient
 from ansible.module_utils.basic import AnsibleModule
 DOCUMENTATION = '''
 module: cc_user
@@ -126,16 +126,16 @@ user:
 
 class Client:
 
-    def __init__(self, api_client_args: ApiClientArgs,
+    def __init__(self,
                  state: str, cluster_id: str, name: str, password: str):
 
         # cc client
-        self.client = APIClient(api_client_args)
+        self.client = APIClient()
 
         # vars
         self.state = state
         self.name = name
-        self.cluster_id = get_cluster_id(self.client, cluster_id)
+        self.cluster_id = get_cluster_id_from_cluster_name(self.client, cluster_id)
         self.password = password
 
         # return vars
@@ -246,15 +246,6 @@ def main():
 
     try:
         out, changed = Client(
-            ApiClientArgs(
-                module.params['api_client'].get('cc_key', None),
-                module.params['api_client'].get('api_version', None),
-                module.params['api_client'].get('scheme', None),
-                module.params['api_client'].get('host', None),
-                module.params['api_client'].get('port', None),
-                module.params['api_client'].get('path', None),
-                module.params['api_client'].get('verify_ssl', None)
-            ),
             module.params['state'],
             module.params['cluster_id'],
             module.params['name'],
@@ -262,12 +253,13 @@ def main():
 
         ).run()
 
+        # Outputs
+        module.exit_json(meta=module.params, changed=changed, user=out)
+    
     except Exception as e:
         module.fail_json(meta=module.params, msg=e.args)
 
-    # Outputs
-    module.exit_json(meta=module.params, changed=changed, user=out)
-
+    
 
 if __name__ == '__main__':
     main()

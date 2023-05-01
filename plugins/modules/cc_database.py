@@ -118,7 +118,7 @@ database:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ..module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs
+from ..module_utils.utils import get_cluster_id_from_cluster_name, AnsibleException, APIClient
 
 from cockroachdb_cloud_client.models.cockroach_cloud_edit_database_update_database_request import CockroachCloudEditDatabaseUpdateDatabaseRequest as editdbreq
 from cockroachdb_cloud_client.models.cockroach_cloud_create_database_create_database_request import CockroachCloudCreateDatabaseCreateDatabaseRequest as createdbreq
@@ -129,16 +129,16 @@ import json
 
 class Client:
 
-    def __init__(self, api_client_args: ApiClientArgs,
+    def __init__(self,
                  state: str, cluster_id: str, name: str, rename_to: str):
 
         # cc client
-        self.client = APIClient(api_client_args)
+        self.client = APIClient()
 
         # vars
         self.state = state
         self.name = name
-        self.cluster_id = get_cluster_id(self.client, cluster_id)
+        self.cluster_id = get_cluster_id_from_cluster_name(self.client, cluster_id)
         self.rename_to = rename_to
 
         # return vars
@@ -256,20 +256,10 @@ def main():
 
     try:
         out, changed = Client(
-            ApiClientArgs(
-                module.params['api_client'].get('cc_key', None),
-                module.params['api_client'].get('api_version', None),
-                module.params['api_client'].get('scheme', None),
-                module.params['api_client'].get('host', None),
-                module.params['api_client'].get('port', None),
-                module.params['api_client'].get('path', None),
-                module.params['api_client'].get('verify_ssl', None)
-            ),
             module.params['state'],
             module.params['cluster_id'],
             module.params['name'],
             module.params['rename_to']
-
         ).run()
 
     except Exception as e:
