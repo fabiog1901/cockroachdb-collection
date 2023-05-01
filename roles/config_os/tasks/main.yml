@@ -36,7 +36,7 @@
     reload: yes
 
 - name: Set timezone to UTC
-  timezone:
+  community.general.timezone:
     name: UTC
 
 - name: find attached disks bigger than 100GB
