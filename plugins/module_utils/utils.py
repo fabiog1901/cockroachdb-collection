@@ -90,8 +90,8 @@ def fetch_cluster_by_id_or_name(client: APIClient, name: str):
             cluster_id=name
         )
 
-        if r.status_code == 200 and r.parsed:
-            return r.parsed 
+        if r.status_code == 200: 
+            return r.parsed
         else:
             raise AnsibleException(r)
     else:
@@ -99,12 +99,12 @@ def fetch_cluster_by_id_or_name(client: APIClient, name: str):
             client=client,
             show_inactive=False)
 
-        if r.status_code == 200 and r.parsed:
-            for x in r.parsed.clusters:
-                if x.name == name:
-                    return x
-            
-            raise Exception(
-                {'content': f'could not fetch cluster details for cluster name: {name}'})
+        if r.status_code == 200:
+            if r.parsed:
+                for x in r.parsed.clusters:
+                    if x.name == name:
+                        return x
+                
+            return None
         else:
             raise AnsibleException(r)

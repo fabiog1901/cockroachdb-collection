@@ -251,7 +251,7 @@ clusters:
 
 # ANSIBLE
 from ansible.module_utils.basic import AnsibleModule
-from ...plugins.module_utils.utils import get_cluster_id, AnsibleException, APIClient, ApiClientArgs, fetch_cluster_by_id_or_name
+from ...plugins.module_utils.utils import get_cluster_id, AnsibleException, APIClient, fetch_cluster_by_id_or_name
 
 from cockroachdb_cloud_client.models.create_cluster_request import CreateClusterRequest
 from cockroachdb_cloud_client.models.create_cluster_specification import CreateClusterSpecification
@@ -272,13 +272,13 @@ import time
 
 class Client:
 
-    def __init__(self, api_client_args: ApiClientArgs, 
+    def __init__(self, 
                  state: str, name: str, provider: str, plan: str, regions: list[str], 
                  request_unit_limit: int, storage_mib_limit: int    ,
                  version: str, instance_type: str, vcpus: int, disk_iops: int, disk_size: int, wait: bool):
 
         # cc client
-        self.client = APIClient(api_client_args)
+        self.client = APIClient()
         
         # vars
         self.state = state
@@ -443,15 +443,6 @@ def main():
 
     try:
         out, changed = Client(
-            ApiClientArgs(
-                module.params['api_client'].get('cc_key', None),
-                module.params['api_client'].get('api_version', None),
-                module.params['api_client'].get('scheme', None),
-                module.params['api_client'].get('host', None),
-                module.params['api_client'].get('port', None),
-                module.params['api_client'].get('path', None),
-                module.params['api_client'].get('verify_ssl', None)
-            ),
             module.params['state'],
             module.params['name'],
             module.params['provider'],
