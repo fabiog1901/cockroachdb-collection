@@ -38,11 +38,11 @@
 #test
 #
 - name: Set timezone to UTC
-  community.general.timezone:
-    name: UTC
+  ansible.builtin.shell: |
+    timedatectl set-timezone UTC
 
 - name: find attached disks bigger than 100GB
-  shell: |
+  ansible.builtin.shell: |
     lsblk -o NAME,TYPE,SIZE -p -n -b -s | \
       awk '$NF ~ /[1-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/' | \
       grep -v '└─' | \
