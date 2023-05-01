@@ -35,8 +35,6 @@
     state: present
     reload: yes
 
-#test
-#
 - name: Set timezone to UTC
   ansible.builtin.shell: |
     timedatectl set-timezone UTC
@@ -55,7 +53,6 @@
 - when: _disks.stdout_lines | length > 0
   block:
     - name: Create a ext4 filesystem
-      community.general.filesystem:
-        fstype: ext4
-        dev: "{{ item }}"
+      ansible.builtin.shell: |
+        mkfs.ext4 {{ item }}
       loop: "{{ _disks.stdout_lines }}"
