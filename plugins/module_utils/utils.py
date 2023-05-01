@@ -24,7 +24,7 @@ class APIClient(AuthenticatedClient):
 
     def __init__(
         self,
-        cc_key: str | None = None,
+        cc_key: str = None,
         api_version: str = '2023-04-10',
         scheme: str = 'https',
         host: str = 'cockroachlabs.cloud',
