@@ -55,4 +55,6 @@
     - name: Create a ext4 filesystem
       ansible.builtin.shell: |
         mkfs.ext4 {{ item }}
+      failed_when: result.rc != 0 and 'will not make a filesystem here!' not in result.stderr
       loop: "{{ _disks.stdout_lines }}"
+      register: result
