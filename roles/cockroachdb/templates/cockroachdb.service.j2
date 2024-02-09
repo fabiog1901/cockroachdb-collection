@@ -22,7 +22,8 @@ ExecStart=/usr/local/bin/cockroach start \
     --join={{ join }}:{{ cockroachdb_rpc_port }} \
     {% endfor %}
     --locality={{ cockroachdb_locality }} \
-    --attrs={{ cockroachdb_attrs }}
+    --attrs={{ cockroachdb_attrs }} \
+    --max-offset={{ cockroachdb_max_offset }}
 TimeoutStopSec=300
 LimitNOFILE=65000
 Restart=always

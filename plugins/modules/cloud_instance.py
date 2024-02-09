@@ -159,7 +159,6 @@ class CloudInstance:
         logger.info("All operation threads have completed")
 
         if self.errors:
-            logger.error(str(self.errors))
             raise ValueError(self.errors)
 
         logger.debug("Returning new deployment list to client")
@@ -290,18 +289,6 @@ class CloudInstance:
             }
         ]
 
-    # def __fetch_aws_instances_per_region(self, region, deployment_id):
-    #     logger.debug(f'Fetching AWS instances from {region}')
-
-    #     ec2 = boto3.client('ec2', region_name=region)
-    #     response = ec2.describe_instances(
-    #         Filters=[{'Name': 'instance-state-name', 'Values': ['pending', 'running']},
-    #                  {'Name': 'tag:deployment_id', 'Values': [deployment_id]}])
-
-    #     instances: list = self.__parse_aws_query(response)
-
-    #     self.__update_current_deployment(instances)
-
     def __fetch_aws_instances(self, deployment_id: str):
         logger.debug(f"Fetching AWS instances for deployment_id = '{deployment_id}'")
 
@@ -345,7 +332,13 @@ class CloudInstance:
             for x in threads:
                 x.join()
         except Exception as e:
-            self.__log_error(e)
+            self.__log_error(
+                {
+                    "method": "__fetch_aws_instances",
+                    "error_type": str(type(e)),
+                    "msg": str(e.args),
+                }
+            )
 
     def __fetch_gcp_instances(self, deployment_id: str, project_id: str):
         """
@@ -464,7 +457,7 @@ class CloudInstance:
 
     def __log_error(self, error: str):
         with self._lock:
-            logger.debug("Updating errors list")
+            logger.debug("Updating errors list: ", error)
             self.errors.append(error)
 
     def __build_deployment(self):
@@ -841,9 +834,9 @@ class CloudInstance:
                     "lun": i,
                     "name": instance_name + "-disk-" + str(i),
                     "create_option": "Attach",
-                    "delete_option": "Delete"
-                    if x.get("delete_on_termination", True)
-                    else "Detach",
+                    "delete_option": (
+                        "Delete" if x.get("delete_on_termination", True) else "Detach"
+                    ),
                     "managed_disk": {"id": data_disk.id},
                 }
                 vols.append(disk)
@@ -1118,7 +1111,7 @@ def main():
         ).run()
 
     except Exception as e:
-        module.fail_json(msg=e)
+        module.fail_json(msg=e.args)
 
     logger.debug("Deployment instances list:")
     for x in instances:
