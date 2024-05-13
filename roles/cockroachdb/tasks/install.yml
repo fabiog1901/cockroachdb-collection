@@ -1,32 +1,37 @@
 ---
+- name: Create the binary-type map
+  ansible.builtin.set_fact:
+    # map the machine CPU type to the matching filename component
+    cockroachdb_binary_arch:
+      aarch64: arm64
+      x86_64: amd64
+
 - name: Check that tarball exists
   stat:
-    path: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-amd64.tgz
+    path: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
   register: _stat_result
 
-# TODO: don't assume the architecture is 'linux-amd64'
 # TODO: build targz bin file path
 # TODO: try avoiding umarchiving tarball if already done
 - when: cockroachdb_version != "master"
   block:
     - name: get cockroach binary
       get_url:
-        url: '{{ cockroachdb_repo_url }}/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-amd64.tgz'
+        url: '{{ cockroachdb_repo_url }}/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz'
         dest: /root
       when: not _stat_result.stat.exists
 
-
     - name: untar the tar.gz
       unarchive:
-        src: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-amd64.tgz
+        src: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
         dest: /root
         remote_src: yes
 
     - name: Find unarchived cockroachdb directory
       find:
-        paths: 
+        paths:
           - "/root"
-        patterns: "{{ cockroachdb_bin_prefix }}*.linux-amd64"
+        patterns: "{{ cockroachdb_bin_prefix }}*.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}"
         recurse: no
         file_type: directory
       register: dirs
@@ -52,11 +57,9 @@
         path: "{{ dirs.files[0].path }}"
         state: absent
 
-
 - when: cockroachdb_version == "master"
   block:
     - ansible.builtin.shell: |
-        wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-amd64.LATEST
-        chmod +x cockroach.linux-gnu-amd64.LATEST
-        mv cockroach.linux-gnu-amd64.LATEST /usr/local/bin/cockroach
-
+        wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
+        chmod +x cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
+        mv cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
