@@ -558,6 +558,7 @@
       loop: "{{ dbusers }}"
       failed_when: result.rc != 0 and 'already exists' not in result.stderr
       register: result
+      when: cockroachdb_secure
 
     - name: cockroachdb - grant admin to users
       run_once: yes
@@ -567,6 +568,6 @@
           {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
           -e "GRANT admin TO {{ item.name }};"
       loop: "{{ dbusers }}"
-      when: item.is_admin
+      when: item.is_admin and cockroachdb_secure
   tags:
     - app
