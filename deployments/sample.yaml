@@ -265,6 +265,7 @@ cockroachdb_http_addr_ip: "0.0.0.0"
 cockroachdb_http_addr_port: "8080"
 cockroachdb_cache: '.25'
 cockroachdb_max_sql_memory: '.25'
+cockroachdb_max_offset: 250ms
 # the value for below vars are fetched individually for each node from hostvars
 # these are variables that must be already available in the Ansible inventory
 cockroachdb_locality: "region={{ region | default('') }},zone={{ zone | default('') }}"
@@ -276,7 +277,10 @@ cockroachdb_enterprise_license: crl-0-EO7clJsGGAIiCFdvcmtzaG9w
 cockroachdb_encryption: no
 cockroachdb_encryption_key_old: 
 cockroachdb_encryption_key_new:
-
+cockroachdb_autofinalize: yes
+cockroachdb_env_vars:
+  - KRB5_KTNAME=/var/lib/cockroach/cockroach.keytab
+  #- GOGC=1000
 
 ###############
 # APPLICATION #
