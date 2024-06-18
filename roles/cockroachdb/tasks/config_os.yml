@@ -48,7 +48,7 @@
 
     - name: copy CA certificate
       copy:
-        src: "{{ cockroachdb_certificates_dir }}/certs/ca.crt"
+        src: "{{ cockroachdb_certificates_dir }}/ca/ca.crt"
         dest: /var/lib/cockroach/certs/ca.crt
 
     - name: copy node certificate
@@ -77,7 +77,9 @@
         dest: /var/lib/cockroach/certs
         mode: "0400"
       loop: "{{ cockroachdb_certificates_clients }}"
-
+  tags:
+    - certificates
+    
 - name: find attached disks
   shell: |
     lsblk -o NAME,TYPE,SIZE -p -n -b -s | \

@@ -11,15 +11,13 @@
     path: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
   register: _stat_result
 
-# TODO: build targz bin file path
-# TODO: try avoiding umarchiving tarball if already done
-- when: cockroachdb_version != "master"
+
+- when: cockroachdb_version != "master" and not _stat_result.stat.exists
   block:
     - name: get cockroach binary
       get_url:
         url: '{{ cockroachdb_repo_url }}/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz'
         dest: /root
-      when: not _stat_result.stat.exists
 
     - name: untar the tar.gz
       unarchive:

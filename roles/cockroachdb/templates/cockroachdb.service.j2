@@ -4,7 +4,9 @@ Requires=network.target
 [Service]
 Type=notify
 WorkingDirectory=/var/lib/cockroach
-Environment="KRB5_KTNAME=/var/lib/cockroach/cockroach.keytab"
+{% for v in cockroachdb_env_vars %}
+Environment="{{ v }}"
+{% endfor %}
 ExecStart=/usr/local/bin/cockroach start \
     {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
     {% for store in cockroachdb_store %}
