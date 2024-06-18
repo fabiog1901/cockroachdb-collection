@@ -157,7 +157,7 @@ class CloudInstance:
         for x in self.threads:
             x.join()
         logger.info("All operation threads have completed")
-
+        
         if self.errors:
             raise ValueError(self.errors)
 
@@ -458,7 +458,7 @@ class CloudInstance:
     def __log_error(self, error: str):
         with self._lock:
             logger.debug("Updating errors list: ", error)
-            self.errors.append(error)
+            self.errors.append(str(error))
 
     def __build_deployment(self):
         # 4. loop through the 'deployment' struct
@@ -596,6 +596,7 @@ class CloudInstance:
         else:
             role = {}
         ec2 = boto3.client("ec2", region_name=group["region"])
+        
         try:
             response = ec2.run_instances(
                 DryRun=False,
@@ -1023,16 +1024,19 @@ class CloudInstance:
     # UTIL METHODS
     # =========================================================================
 
-    def __get_instance_type(self, group):
+    def __get_instance_type(self, group: dict):
         if "instance_type" in group:
             return group["instance_type"]
 
         # instance type
-        gpu = str(group["instance"].get("gpu", "0"))
-        cpu = str(group["instance"].get("cpu", "0"))
-        mem = str(group["instance"].get("mem", "0"))
+        cpu = str(group["instance"].get("cpu"))
+        if cpu == 'None':
+            self.__log_error("instance cpu cannot be null")
+            return
+        
+        mem = str(group["instance"].get("mem", "default"))
         cloud = group["cloud"]
-        return self.defaults["instances"][cloud][gpu][cpu][mem]
+        return self.defaults["instances"][cloud][cpu][mem]
 
     def __merge_dicts(self, parent: dict, child: dict):
         merged = {}
@@ -1111,7 +1115,7 @@ def main():
         ).run()
 
     except Exception as e:
-        module.fail_json(msg=e.args)
+        module.fail_json(msg=e.args[0])
 
     logger.debug("Deployment instances list:")
     for x in instances:
