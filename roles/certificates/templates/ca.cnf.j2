@@ -4,8 +4,8 @@ default_ca = CA_default
 
 [ CA_default ]
 default_days = 365
-database = {{ certificates_dir }}/index.txt
-serial = {{ certificates_dir }}/serial.txt
+database = {{ certificates_dir }}/certs/index.txt
+serial = {{ certificates_dir }}/certs/serial.txt
 default_md = sha256
 copy_extensions = copy
 unique_subject = no

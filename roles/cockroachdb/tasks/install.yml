@@ -12,7 +12,7 @@
   register: _stat_result
 
 
-- when: cockroachdb_version != "master" and not _stat_result.stat.exists
+- when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not _stat_result.stat.exists
   block:
     - name: get cockroach binary
       get_url:
@@ -55,9 +55,16 @@
         path: "{{ dirs.files[0].path }}"
         state: absent
 
-- when: cockroachdb_version == "master"
-  block:
-    - ansible.builtin.shell: |
-        wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
-        chmod +x cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
-        mv cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
+- name: install MASTER binary
+  when: cockroachdb_version == "master"
+  ansible.builtin.shell: |
+    wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
+    chmod +x cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
+    mv cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
+
+- name: install custom binary
+  when: cockroachdb_version == "custom"
+  ansible.builtin.shell: |
+    wget {{ cockroachdb_custom_url }}
+    tar xvf *gz 
+    mv cockroach*/cockroach /usr/local/bin/cockroach
