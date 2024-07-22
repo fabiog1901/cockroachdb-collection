@@ -157,7 +157,7 @@ class CloudInstance:
         for x in self.threads:
             x.join()
         logger.info("All operation threads have completed")
-        
+
         if self.errors:
             raise ValueError(self.errors)
 
@@ -547,61 +547,73 @@ class CloudInstance:
                 "premium_hdd": "st1",
             }.get(x, "gp3")
 
-        vols = [group["volumes"]["os"]] + group["volumes"]["data"]
-
-        bdm = []
-
-        for i, x in enumerate(vols):
-            dev = {
-                "DeviceName": "/dev/sd" + (chr(ord("e") + i)),
-                "Ebs": {
-                    "VolumeSize": int(x.get("size", 100)),
-                    "VolumeType": get_type(x.get("type", "standard_ssd")),
-                    "DeleteOnTermination": bool(x.get("delete_on_termination", True)),
-                },
-            }
-
-            if x.get("type", "standard_ssd") in ["premium_ssd", "standard_ssd"]:
-                dev["Ebs"]["Iops"] = int(x.get("iops", 3000))
-
-            if (
-                x.get("throughput", False)
-                and x.get("type", "standard_ssd") == "standard_ssd"
-            ):
-                dev["Ebs"]["Throughput"] = x.get("throughput", 125)
-
-            bdm.append(dev)
-
-        # hardcoded value for root
-        bdm[0]["DeviceName"] = "/dev/sda1"
-
-        # tags
-        tags = [{"Key": k, "Value": v} for k, v in group["tags"].items()]
-        tags.append({"Key": "deployment_id", "Value": self.deployment_id})
-        tags.append({"Key": "ansible_user", "Value": group["user"]})
-        tags.append({"Key": "cluster_name", "Value": cluster_name})
-        tags.append({"Key": "group_name", "Value": group["group_name"]})
-        tags.append(
-            {
-                "Key": "inventory_groups",
-                "Value": str(group["inventory_groups"] + [cluster_name]),
-            }
-        )
-        tags.append(
-            {"Key": "extra_vars", "Value": json.dumps(group.get("extra_vars", {}))}
-        )
-
-        if group.get("role", None):
-            role = {"Name": group["role"]}
-        else:
-            role = {}
-        ec2 = boto3.client("ec2", region_name=group["region"])
-        
         try:
+            vols = [group["volumes"]["os"]] + group["volumes"]["data"]
+
+            bdm = []
+
+            for i, x in enumerate(vols):
+                dev = {
+                    "DeviceName": "/dev/sd" + (chr(ord("e") + i)),
+                    "Ebs": {
+                        "VolumeSize": int(x.get("size", 100)),
+                        "VolumeType": get_type(x.get("type", "standard_ssd")),
+                        "DeleteOnTermination": bool(x.get("delete_on_termination", True)),
+                    },
+                }
+
+                if x.get("type", "standard_ssd") in ["premium_ssd", "standard_ssd"]:
+                    dev["Ebs"]["Iops"] = int(x.get("iops", 3000))
+
+                if (
+                    x.get("throughput", False)
+                    and x.get("type", "standard_ssd") == "standard_ssd"
+                ):
+                    dev["Ebs"]["Throughput"] = x.get("throughput", 125)
+
+                bdm.append(dev)
+
+            # hardcoded value for root
+            bdm[0]["DeviceName"] = "/dev/sda1"
+
+            logger.debug(f"Volumes: {bdm}")
+            
+            # tags
+            tags = [{"Key": k, "Value": v} for k, v in group["tags"].items()]
+            tags.append({"Key": "deployment_id", "Value": self.deployment_id})
+            tags.append({"Key": "ansible_user", "Value": group["user"]})
+            tags.append({"Key": "cluster_name", "Value": cluster_name})
+            tags.append({"Key": "group_name", "Value": group["group_name"]})
+            tags.append(
+                {
+                    "Key": "inventory_groups",
+                    "Value": str(group["inventory_groups"] + [cluster_name]),
+                }
+            )
+            tags.append(
+                {"Key": "extra_vars", "Value": json.dumps(group.get("extra_vars", {}))}
+            )
+
+            if group.get("role", None):
+                role = {"Name": group["role"]}
+            else:
+                role = {}
+
+            # get latest AMI
+            arch = group.get("instance", {}).get("arch", "amd64")
+
+            image_id = boto3.client("ssm", region_name=group["region"]).get_parameter(
+                Name=f"/aws/service{group['image']}/stable/current/{arch}/hvm/ebs-gp2/ami-id"
+            )["Parameter"]["Value"]
+
+            logger.debug(f"Arch: {arch}, AMI: {image_id}")
+            
+            ec2 = boto3.client("ec2", region_name=group["region"])
+
             response = ec2.run_instances(
                 DryRun=False,
                 BlockDeviceMappings=bdm,
-                ImageId=group["image"],
+                ImageId=image_id,
                 InstanceType=self.__get_instance_type(group),
                 KeyName=group["public_key_id"],
                 MaxCount=1,
@@ -1030,10 +1042,10 @@ class CloudInstance:
 
         # instance type
         cpu = str(group["instance"].get("cpu"))
-        if cpu == 'None':
+        if cpu == "None":
             self.__log_error("instance cpu cannot be null")
             return
-        
+
         mem = str(group["instance"].get("mem", "default"))
         cloud = group["cloud"]
         return self.defaults["instances"][cloud][cpu][mem]
