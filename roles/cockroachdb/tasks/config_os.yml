@@ -137,7 +137,15 @@
       loop_control:
         index_var: idx
 
-- name: copy systemd template cockroachdb.service
+- name: create individual systemd unit file for each NUMA node
+  when: ansible_numa_nodes > 1
+  include_tasks: numa_copy_systemd.yml
+  loop: "{{ range(ansible_numa_nodes) }}"
+  loop_control:
+    index_var: numa_idx
+
+- when: ansible_numa_nodes <= 1
+  name: copy systemd template cockroachdb.service
   template:
     src: cockroachdb.service.j2
     dest: /etc/systemd/system/cockroachdb.service

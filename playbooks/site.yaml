@@ -123,7 +123,7 @@
         cloud: "{{ item.cloud }}"
         region: "{{ item.region }}"
         zone: "{{ item.zone }}"
-
+        
         # addresses
         public_hostname: "{{ item.public_hostname }}"
         public_ip: "{{ item.public_ip }}"
@@ -133,17 +133,12 @@
         # tags
         ansible_user: "{{ item.ansible_user }}"
         ansible_host: "{{ item.public_ip }}"
-        # ansible_become: true # ugly
         groups: "{{ item.inventory_groups }}"
         cluster_name: "{{ item.cluster_name }}"
         group_name: "{{ item.group_name }}"
         extra_vars: "{{ item.extra_vars }}"
 
       loop: "{{ instances.out }}"
-
-    # - name: add extra_vars as hostvars variables
-    #   ansible.builtin.add_host: '{{ {"name": item.private_hostname } | combine(item.extra_vars | from_json ) }}'
-    #   loop: "{{ instances.out }}"
 
     - name: save cluster list of hosts
       ansible.builtin.copy:
@@ -264,9 +259,9 @@
       vars:
         cockroachdb_deployment_type: install only
 
-    - name: get the standalone workload binary
-      shell: |
-        wget https://edge-binaries.cockroachdb.com/cockroach/workload.LATEST -O workload; chmod 755 workload
+    # - name: get the standalone workload binary
+    #   shell: |
+    #     wget https://edge-binaries.cockroachdb.com/cockroach/workload.LATEST -O workload; chmod 755 workload
 
   tags:
     - platform

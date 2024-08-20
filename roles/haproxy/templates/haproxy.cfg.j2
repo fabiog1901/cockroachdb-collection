@@ -16,23 +16,29 @@ listen psql
     mode tcp
     balance roundrobin
     option httpchk GET {{ haproxy_httpchk }}
-    
-    {% for host in haproxy_group %}
-    {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
-    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].private_hostname }}:{{ haproxy_port }} check port {{ haproxy_checkport }}
-    {% endif %}
-    {% endfor %}
+
+{% for host in haproxy_group %}
+{% set outer_loop = loop %}
+{% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
+{% for idx in range(hostvars[host].ansible_numa_nodes|int) %}
+    server {{ haproxy_serverprefix }}{{ outer_loop.index * 100 + idx }} {{ hostvars[host].private_hostname }}:{{ haproxy_port|int + idx }} check port {{ haproxy_checkport|int + idx }}
+{% endfor %}
+{% endif %}
+{% endfor %}
 
 listen http
-    bind :8080
+    bind :{{ haproxy_checkport }}
     mode tcp
     balance roundrobin
     option httpchk GET /health?ready=1
 
-    {% for host in haproxy_group %}
-    {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
-    server {{ haproxy_serverprefix }}{{ loop.index }} {{ hostvars[host].private_hostname }}:8080 check port {{ haproxy_checkport }}
-    {% endif %}
-    {% endfor %}
+{% for host in haproxy_group %}
+{% set outer_loop = loop %}
+{% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
+{% for idx in range(hostvars[host].ansible_numa_nodes|int) %}
+    server {{ haproxy_serverprefix }}{{ outer_loop.index * 100 + idx }} {{ hostvars[host].private_hostname }}:{{ haproxy_checkport|int + idx }} check port {{ haproxy_checkport|int + idx }}
+{% endfor %}
+{% endif %}
+{% endfor %}
 
     

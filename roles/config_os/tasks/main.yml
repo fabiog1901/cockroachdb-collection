@@ -58,3 +58,8 @@
       failed_when: result.rc != 0 and 'will not make a filesystem here!' not in result.stderr
       loop: "{{ _disks.stdout_lines }}"
       register: result
+
+- name: install numactl if instance has NUMA nodes
+  when: ansible_numa_nodes > 1
+  include_tasks: "os_family/{{ ansible_facts.os_family | lower }}-numa.yml"
+

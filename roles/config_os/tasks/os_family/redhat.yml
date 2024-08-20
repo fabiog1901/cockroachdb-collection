@@ -1,6 +1,6 @@
 ---
-- name: install pip
-  yum:
-    name: python3-pip
-    state: latest
+# - name: install pip
+#   yum:
+#     name: python3-pip
+#     state: latest
     

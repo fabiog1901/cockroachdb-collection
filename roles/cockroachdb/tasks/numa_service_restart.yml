@@ -1,0 +1,12 @@
+---
+- name: Ensure cockroachdb services are restarted for each NUMA node
+  ansible.builtin.systemd:
+    name: cockroachdb-{{ numa_idx|string }}
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+
+- name: Pause between node upgrades
+  ansible.builtin.pause:
+    seconds: "{{ cockroachdb_upgrade_delay | default(300) }}"
+  when: cockroachdb_deployment_type == 'upgrade'

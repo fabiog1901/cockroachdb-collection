@@ -1,0 +1,15 @@
+---
+- name: set cokckroach_store for the NUMA node
+  set_fact:
+    cockroachdb_store: 
+      - "{{ '/mnt/cockroach' + numa_idx | string }}"
+
+- name: copy systemd template cockroachdb.service for each NUMA node
+  template:
+    src: cockroachdb-numa.service.j2
+    dest: /etc/systemd/system/cockroachdb-{{ numa_idx|string }}.service
+    mode: 0644
+    owner: root
+    group: root
+    backup: yes
+    force: yes

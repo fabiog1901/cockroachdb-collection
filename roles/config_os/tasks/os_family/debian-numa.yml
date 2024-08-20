@@ -1,0 +1,7 @@
+---
+- name: install numactl
+  apt:
+    name: numactl
+    state: latest
+    update_cache: yes
+    

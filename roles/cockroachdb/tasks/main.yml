@@ -16,7 +16,14 @@
     state: restarted
     enabled: yes
     daemon_reload: yes
-  when: cockroachdb_deployment_type != 'install only'
+  when: cockroachdb_deployment_type != 'install only' and ansible_numa_nodes <= 1
+
+- name: Ensure cockroachdb services are restarted
+  when: cockroachdb_deployment_type != 'install only' and ansible_numa_nodes > 1
+  include_tasks: numa_service_restart.yml
+  loop: "{{ range(ansible_numa_nodes) }}"
+  loop_control:
+    index_var: numa_idx
 
 - name: Init Cluster
   run_once: yes
@@ -31,5 +38,5 @@
 - name: Pause between node upgrades
   ansible.builtin.pause:
     seconds: "{{ cockroachdb_upgrade_delay | default(300) }}"
-  when: cockroachdb_deployment_type == 'upgrade'
+  when: cockroachdb_deployment_type == 'upgrade' and ansible_numa_nodes <= 1
   
