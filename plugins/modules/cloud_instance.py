@@ -543,6 +543,7 @@ class CloudInstance:
             return {
                 "standard_ssd": "gp3",
                 "premium_ssd": "io2",
+                "gp2": "gp2",
                 "standard_hdd": "sc1",
                 "premium_hdd": "st1",
             }.get(x, "gp3")
