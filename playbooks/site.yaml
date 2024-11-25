@@ -158,10 +158,10 @@
       ansible.builtin.copy:
         content: |
           {% for item in groups %}
-          {% if item not in ['all', 'ungrouped'] %}
+          {% if item in ['haproxy', 'cockroachdb'] %}
           [{{item}}]
           {% for entry in groups[item] %}
-          {{ entry }} ==> {{ hostvars[entry].public_ip }} {{ hostvars[entry].cloud }} {{ hostvars[entry].region }}
+          {{ hostvars[entry].cloud }}   {{ "{:18}".format(hostvars[entry].region) }} {{ hostvars[entry].public_ip }}
           {% endfor %}
 
           {% endif %}
