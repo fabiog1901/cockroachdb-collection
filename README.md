@@ -1,31 +1,10 @@
 # CockroachDB Collection
 
-The Collection groups together Ansible Module, Roles and Playbooks suited for working with all [CockroachDB deployment options](https://www.cockroachlabs.com/get-started-cockroachdb/):
-
-- CockroachDB-as-a-Service (Cockroach Cloud)
-  - CockroachDB dedicated
-  - CockroachDB serverless
-
-- CockroachDB Self Hosted
-
-Collection documentation: <https://fabiog1901.github.io/cockroachdb-collection/index.html>
-
-## CockroachDB-as-a-Service
-
-Install the collection, currently hosted on GitHub
-
-```bash
-ansible-galaxy collection install git+https://github.com/fabiog1901/cockroachdb-collection.git
-
-# install required pip packages
-pip install cockroachdb-cloud-client
-```
-
-Head to [playbooks/cc_examples.yaml](playbooks/cc_examples.yaml) for sample Playbooks and Tasks.
+The Collection groups together Ansible Modules, Roles and Playbooks for deploying a CockroachDB Self Hosted cluster.
 
 ## CockroachDB Self-Hosted
 
-The Collection includes a Playbook for spinning up a secure, kerberized, multi-region CockroachDB cluster for demos.
+The Collection includes Playbook `/playbooks/site.yaml` for spinning up a secure, multi-region CockroachDB cluster.
 
 A complete example on how to use this Collection is available in this [blog](https://dev.to/cockroachlabs/deploy-cockroachdb-on-the-public-cloud-using-ansible-1ek1).
 

@@ -1,9 +1,15 @@
 ---
-- name: pull os family specific vars
-  include_vars: "{{ ansible_facts.os_family | lower }}.yml"
-  
-- name: Run os_family specific tasks
-  include_tasks: "{{ ansible_facts.os_family | lower }}.yml"
+- name: install haproxy on debian
+  when: ansible_facts.os_family | lower == 'debian'
+  shell: |
+    apt update
+    apt install -y haproxy
+
+- name: install haproxy on redhat
+  when: ansible_facts.os_family | lower == 'redhat'
+  shell: |
+    dnf update -y
+    dnf install -y haproxy
 
 - name: copy haproxy.cfg
   template:
@@ -16,9 +22,5 @@
     force: yes
 
 - name: Start haproxy
-  service:
-    name: "{{ item }}"
-    state: restarted
-    enabled: yes
-  loop: "{{ haproxy_daemons }}"
-  
+  shell: |
+    systemctl restart haproxy

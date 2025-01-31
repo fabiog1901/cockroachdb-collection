@@ -11,7 +11,6 @@ cockroachdb_store:
 cockroachdb_secure_flag: --certs-dir=/var/lib/cockroach/certs
 cockroachdb_insecure_flag: --insecure
 cockroachdb_repo_url: https://binaries.cockroachdb.com
-cockroachdb_bin_prefix: cockroach-
 # these vars must be passed
 cockroachdb_join: []
 # the location of the value for these vars 

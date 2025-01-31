@@ -37,6 +37,6 @@
 
 - name: Pause between node upgrades
   ansible.builtin.pause:
-    seconds: "{{ cockroachdb_upgrade_delay | default(300) }}"
+    seconds: "{{ cockroachdb_upgrade_delay | default(120) }}"
   when: cockroachdb_deployment_type == 'upgrade' and ansible_numa_nodes <= 1
   

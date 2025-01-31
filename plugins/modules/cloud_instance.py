@@ -91,10 +91,10 @@ meta:
 
 class CloudInstance:
     def __init__(
-        self, deployment_id: str, present: bool, deployment: list, defaults: dict
+        self, deployment_id: str, state: bool, deployment: list, defaults: dict
     ):
         self.deployment_id = deployment_id
-        self.present = present
+        self.state = state
         self.deployment = deployment
         self.defaults = defaults
 
@@ -141,8 +141,14 @@ class CloudInstance:
         #    - extra_vars
         #    - the unique cloud identifier (eg aws instance_id, for easy deleting operations)
 
+        if self.state == "stopped":
+            pass
+        
+        if self.state == "started":
+            pass
+        
         # instances of the new deployment will go into the 'new_instances' list
-        if self.present:
+        if self.state == "present":
             logger.info("Building deployment...")
             self.__build_deployment()
 
@@ -469,7 +475,7 @@ class CloudInstance:
         for cluster in self.deployment:
             # extract the cluster name for all copies,
             # then, for each requested copy, add the index suffix
-            cluster_name: str = cluster["cluster_name"]
+            cluster_name: str = cluster.get("cluster_name", self.deployment_id)
             for x in range(int(cluster.get("copies", 1))):
                 self.__build_cluster(f"{cluster_name}-{x}", cluster)
 
@@ -604,7 +610,7 @@ class CloudInstance:
             arch = group.get("instance", {}).get("arch", "amd64")
 
             image_id = boto3.client("ssm", region_name=group["region"]).get_parameter(
-                Name=f"/aws/service{group['image']}/stable/current/{arch}/hvm/ebs-gp2/ami-id"
+                Name=f"/aws/service{group['image']}/stable/current/{arch}/hvm/ebs-gp3/ami-id"
             )["Parameter"]["Value"]
 
             logger.debug(f"Arch: {arch}, AMI: {image_id}")
@@ -1122,7 +1128,7 @@ def main():
     try:
         instances, changed = CloudInstance(
             module.params["deployment_id"],
-            True if module.params["state"] == "present" else False,
+            module.params["state"],
             module.params["deployment"],
             module.params["defaults"],
         ).run()

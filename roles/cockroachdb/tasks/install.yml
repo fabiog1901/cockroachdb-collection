@@ -8,52 +8,62 @@
 
 - name: Check that tarball exists
   stat:
-    path: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+    path: /root/cockroachdb_{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
   register: _stat_result
 
 
-- when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not _stat_result.stat.exists
-  block:
-    - name: get cockroach binary
-      get_url:
-        url: '{{ cockroachdb_repo_url }}/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz'
-        dest: /root
+- name: download and install binary
+  ansible.builtin.shell: |
+    wget {{ cockroachdb_repo_url }}/cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+    tar xvf cockroach-*.tgz
+    mv cockroach-*/cockroach /usr/local/bin/cockroach
+    chmod 755 /usr/local/bin/cockroach
+    mv cockroach-*/lib/libgeos*.so /usr/local/lib/cockroach/
+    rm -rf cockroach-*
+  when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not _stat_result.stat.exists
+  
+# - when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not _stat_result.stat.exists
+#   block:
+#     - name: get cockroach binary
+#       get_url:
+#         url: '{{ cockroachdb_repo_url }}/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz'
+#         dest: /root
 
-    - name: untar the tar.gz
-      unarchive:
-        src: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
-        dest: /root
-        remote_src: yes
+#     - name: untar the tar.gz
+#       unarchive:
+#         src: /root/{{ cockroachdb_bin_prefix }}{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+#         dest: /root
+#         remote_src: yes
 
-    - name: Find unarchived cockroachdb directory
-      find:
-        paths:
-          - "/root"
-        patterns: "{{ cockroachdb_bin_prefix }}*.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}"
-        recurse: no
-        file_type: directory
-      register: dirs
+#     - name: Find unarchived cockroachdb directory
+#       find:
+#         paths:
+#           - "/root"
+#         patterns: "{{ cockroachdb_bin_prefix }}*.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}"
+#         recurse: no
+#         file_type: directory
+#       register: dirs
 
-    - name: copy binary to bin dir
-      copy:
-        src: "{{ dirs.files[0].path }}/cockroach"
-        dest: /usr/local/bin/
-        remote_src: yes
-        mode: "0755"
+#     - name: copy binary to bin dir
+#       copy:
+#         src: "{{ dirs.files[0].path }}/cockroach"
+#         dest: /usr/local/bin/
+#         remote_src: yes
+#         mode: "0755"
 
-    - name: copy GIS libs to right location
-      copy:
-        src: "{{ dirs.files[0].path }}/lib/{{ item }}"
-        dest: /usr/local/lib/cockroach/
-        remote_src: yes
-      loop:
-        - libgeos.so
-        - libgeos_c.so
+#     - name: copy GIS libs to right location
+#       copy:
+#         src: "{{ dirs.files[0].path }}/lib/{{ item }}"
+#         dest: /usr/local/lib/cockroach/
+#         remote_src: yes
+#       loop:
+#         - libgeos.so
+#         - libgeos_c.so
 
-    - name: Recursively remove directory
-      ansible.builtin.file:
-        path: "{{ dirs.files[0].path }}"
-        state: absent
+#     - name: Recursively remove directory
+#       ansible.builtin.file:
+#         path: "{{ dirs.files[0].path }}"
+#         state: absent
 
 - name: install MASTER binary
   when: cockroachdb_version == "master"
@@ -61,6 +71,7 @@
     wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
     chmod +x cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
     mv cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
+    rm -rf cockroach-*
 
 - name: install custom binary
   when: cockroachdb_version == "custom"
@@ -68,3 +79,4 @@
     wget {{ cockroachdb_custom_url }}
     tar xvf *gz 
     mv cockroach*/cockroach /usr/local/bin/cockroach
+    rm -rf cockroach-*
