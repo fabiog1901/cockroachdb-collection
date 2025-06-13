@@ -1,0 +1,15 @@
+---
+- name: DEPROVISION VMS
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  become: no
+  tasks:
+    - name: Ensure presence of instances
+      ansible.builtin.shell: |
+        cloud_instance {{ deployment_id }} absent '[]' '{}'
+      register: instances
+
+    - name: list instances
+      ansible.builtin.debug:
+        var: instances.stdout | from_json
