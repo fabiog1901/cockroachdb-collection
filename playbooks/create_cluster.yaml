@@ -1,0 +1,1105 @@
+---
+##############
+#   INFRA    #
+##############
+- name: PROVISION VMS
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  become: no
+  tags:
+    - infra
+    - cloud_instance
+  tasks:
+    - name: Ensure presence of instances
+      ansible.builtin.shell: |
+        cloud_instance {{ deployment_id }} "{{ state }}" '{{ deployment | to_json }}' '{{ defaults | to_json }}'
+      vars:
+        defaults:
+          instances:
+            aws:
+              "2":
+                default: m6i.large
+                "4": c5.large
+                "8": m6i.large
+                "16": r5.large
+              "4":
+                default: m6i.xlarge
+                "8": c5.xlarge
+                "16": m6i.xlarge
+                "32": r5.xlarge
+              "8":
+                default: m6i.2xlarge
+                "16": c5.2xlarge
+                "32": m6i.2xlarge
+                "64": r5.2xlarge
+              "16":
+                default: m6i.4xlarge
+                "32": c5.4xlarge
+                "64": m6i.4xlarge
+                "128": r5.4xlarge
+              "32":
+                default: m6i.8xlarge
+                "128": m6i.8xlarge
+                "256": r5.8xlarge
+            azure:
+              "2":
+                "4": Standard_F2s_v2
+                "8": Standard_D2s_v3
+                "16": Standard_E2s_v3
+                default: Standard_D2s_v3
+              "4":
+                "8": Standard_F4s_v2
+                "16": Standard_D4s_v3
+                "32": Standard_E4s_v3
+                default: Standard_D4s_v3
+              "8":
+                "16": Standard_F8s_v2
+                "32": Standard_D8s_v3
+                "64": Standard_E8s_v3
+                default: Standard_D8s_v3
+              "16":
+                "32": Standard_F16s_v2
+                "64": Standard_D16s_v3
+                "128": Standard_E16s_v3
+                default: Standard_D16s_v3
+              "32":
+                "64": Standard_F32s_v2
+                "128": Standard_D32s_v3
+                "256": Standard_E32s_v3
+                default: Standard_D32s_v3
+            gcp:
+              "2":
+                default: n2-standard-2
+                "2": n2-highcpu-2
+                "4": n2-standard-2
+                "8": n2-standard-2
+                "16": n2-highmem-2
+              "4":
+                default: n2-standard-4
+                "4": n2-highcpu-4
+                "8": n2-standard-4
+                "16": n2-standard-4
+                "32": n2-highmem-4
+              "8":
+                default: n2-standard-8
+                "8": n2-highcpu-8
+                "16": n2-standard-8
+                "32": n2-standard-8
+                "64": n2-highmem-8
+              "16":
+                default: n2-standard-16
+                "16": n2-highcpu-16
+                "32": n2-standard-16
+                "64": n2-standard-16
+                "128": n2-highmem-16
+              "32":
+                default: n2-standard-32
+                "32": n2-highcpu-32
+                "64": n2-standard-32
+                "128": n2-standard-32
+                "256": n2-highmem-32
+      register: instances
+
+    - name: quit if state is absent
+      fail:
+        # msg: "state is absent, will quit here!"
+      when: state == 'absent'
+
+    - name: Wait for SSH to come up
+      ansible.builtin.wait_for:
+        host: "{{ item.public_ip }}"
+        port: 22
+        timeout: 180
+        sleep: 5
+        state: started
+      loop: "{{ instances.stdout | from_json }}"
+
+    - name: Build ansible inventory dynamically
+      ansible.builtin.add_host:
+        # id
+        name: "{{ item.public_ip }}"
+        id: "{{ item.id }}"
+
+        # locality
+        cloud: "{{ item.cloud }}"
+        region: "{{ item.region }}"
+        zone: "{{ item.zone }}"
+
+        # addresses
+        public_hostname: "{{ item.public_hostname }}"
+        public_ip: "{{ item.public_ip }}"
+        private_hostname: "{{ item.private_hostname }}"
+        private_ip: "{{ item.private_ip }}"
+
+        # tags
+        ansible_user: "{{ item.ansible_user }}"
+        ansible_host: "{{ item.public_ip }}"
+        groups: "{{ item.inventory_groups }}"
+        cluster_name: "{{ item.cluster_name }}"
+        group_name: "{{ item.group_name }}"
+        extra_vars: "{{ item.extra_vars }}"
+      loop: "{{ instances.stdout | from_json }}"
+
+    - name: save cluster list of hosts
+      ansible.builtin.copy:
+        content: |
+          {% for item in groups %}
+          {% if item not in ['all', 'ungrouped'] %}
+          [{{item}}]
+          {% for entry in groups[item] %}
+          {{ entry }} ansible_host={{ hostvars[entry].ansible_host }} cloud={{ hostvars[entry].cloud }} cluster_name={{ hostvars[entry].cluster_name }}  group_name={{ hostvars[entry].group_name }} id={{ hostvars[entry].id }} region={{ hostvars[entry].region }} zone={{ hostvars[entry].zone }} private_hostname={{ hostvars[entry].private_hostname }} private_ip={{ hostvars[entry].private_ip }} public_hostname={{ hostvars[entry].public_hostname }} public_ip={{ hostvars[entry].public_ip }} ansible_user={{ hostvars[entry].ansible_user }} extra_vars="{{ hostvars[entry].extra_vars }}" 
+          {% endfor %} 
+
+          {% endif %}
+          {% endfor %}
+        dest: "../inventories/{{ deployment_id }}.ini"
+
+    - name: save simplified list of hosts
+      ansible.builtin.copy:
+        content: |
+          {% for item in groups %}
+          {% if item in ['haproxy', 'cockroachdb'] %}
+          [{{item}}]
+          {% for entry in groups[item] %}
+          {{ hostvars[entry].cloud }}   {{ "{:18}".format(hostvars[entry].region) }} {{ hostvars[entry].public_ip }}
+          {% endfor %}
+
+          {% endif %}
+          {% endfor %}
+        dest: "../inventories/{{ deployment_id }}.simple.ini"
+
+##############
+#  PLATFORM  #
+##############
+- name: INSTALL MIT KDC CLIENT
+  hosts: krb5_client
+  gather_facts: yes
+  become: yes
+  tags:
+    - platform
+    - mitkdc
+    - krb_client
+  tasks:
+    - name: install krb5 on debian
+      when: ansible_facts.os_family | lower == 'debian'
+      apt:
+        name:
+          - krb5-user
+        state: present
+        update_cache: yes
+
+    - name: install krb5 on redhat
+      when: ansible_facts.os_family | lower == 'redhat''
+      yum:
+        name:
+          - krb5-libs
+          - krb5-workstation
+        state: present
+
+    - name: copy krb5.conf
+      copy:
+        content: |
+          [libdefaults]
+            default_realm = {{ krb5_realm | upper }}
+            dns_lookup_kdc = false
+            dns_lookup_realm = false
+            ticket_lifetime = 86400
+            renew_lifetime = 604800
+            forwardable = true
+            default_tgs_enctypes = {{ krb5_enc_types }}
+            default_tkt_enctypes = {{ krb5_enc_types }}
+            permitted_enctypes = {{ krb5_enc_types }}
+            udp_preference_limit = 1
+            kdc_timeout = 3000
+
+          [realms]
+            {{ krb5_realm | upper }} = {
+              kdc = {{ krb5_kdc_host }}
+              admin_server = {{ krb5_kdc_host}}
+            }
+
+          [domain_realm]
+
+        dest: /etc/krb5.conf
+        mode: 0644
+        owner: root
+        group: root
+        backup: yes
+        force: yes
+  
+- name: INSTALL MIT KDC SERVER
+  hosts: krb5_server
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: install MIT KDC server
+      include_role:
+        name: fabiog1901.cockroachdb.krb_server
+  tags:
+    - platform
+    - mitkdc
+    - krb_server
+
+- name: GENERATE COCKROACHDB CERTS
+  hosts: localhost
+  gather_facts: yes
+  become: no
+  vars:
+    certificates_organization_name: fabio-org
+    certificates_dir: certs
+    certificates_usernames:
+      - root
+    certificates_hosts: "{{ groups['cockroachdb'] }}"
+    certificates_loadbalancer: "{{ groups['haproxy'] }}"
+  tags:
+    - platform
+    - certificates
+  tasks:
+    - name: Check whether ca.key exists
+      stat:
+        path: /var/lib/ca/ca.key"
+      register: _stat_result
+
+    - name: create CA crt and key if non existant
+      when: not _stat_result.stat.exists 
+      block:  
+        - name: clean up directory
+          shell: |
+            rm -rf /var/lib/ca/*
+
+        - name: create ca.key
+          ansible.builtin.shell: |
+            openssl genrsa \
+              -out /var/lib/ca/ca.key 2048
+            
+            chmod 400 /var/lib/ca/ca.key
+            
+        - name: Create ca.cnf
+          ansible.builtin.copy:
+            content: |
+              # OpenSSL CA configuration file
+              [ ca ]
+              default_ca = CA_default
+
+              [ CA_default ]
+              default_days = 365
+              database = /tmp/index.txt
+              serial = /tmp/serial.txt
+              default_md = sha256
+              copy_extensions = copy
+              unique_subject = no
+
+              # Used to create the CA certificate.
+              [ req ]
+              prompt=no
+              distinguished_name = distinguished_name
+              x509_extensions = extensions
+
+              [ distinguished_name ]
+              organizationName = {{ certificates_organization_name }}
+              commonName = {{ certificates_organization_name }} CA
+
+              [ extensions ]
+              keyUsage = critical,digitalSignature,nonRepudiation,keyEncipherment,keyCertSign
+              basicConstraints = critical,CA:true,pathlen:1
+
+              # Common policy for nodes and users.
+              [ signing_policy ]
+              organizationName = supplied
+              commonName = optional
+
+              # Used to sign node certificates.
+              [ signing_node_req ]
+              keyUsage = critical,digitalSignature,keyEncipherment
+              extendedKeyUsage = serverAuth,clientAuth
+
+              # Used to sign client certificates.
+              [ signing_client_req ]
+              keyUsage = critical,digitalSignature,keyEncipherment
+              extendedKeyUsage = clientAuth
+            dest: /var/lib/ca/ca.cnf
+
+        - name: create the ca.crt
+          ansible.builtin.shell: |
+            openssl req \
+              -new \
+              -x509 \
+              -config {{ certificates_dir }}/ca/ca.cnf \
+              -key {{ certificates_dir }}/ca/ca.key \
+              -out {{ certificates_dir }}/ca/ca.crt \
+              -days 365 \
+              -batch
+
+    - name: Recreate certificate directory
+      ansible.builtin.shell: |
+        rm /tmp/index.txt
+        rm /tmp/serial.txt
+        touch /tmp/index.txt
+        echo '01' > /tmp/serial.txt
+
+        rm -rf "{{ certificates_dir }}"
+        mkdir "{{ certificates_dir }}"
+        chmod 0755 "{{ certificates_dir }}"
+
+    # Step 2. Create the certificate and key pairs for nodes
+    - name: Create the cnf file
+      ansible.builtin.copy:
+        content: |
+          # OpenSSL node configuration file
+          [ req ]
+          prompt=no
+          distinguished_name = distinguished_name
+          req_extensions = extensions
+
+          [ distinguished_name ]
+          organizationName = {{ certificates_organization_name }}
+
+          [ extensions ]
+          subjectAltName = critical, @san
+
+          [ san ]
+          DNS.1 = localhost
+          DNS.2 = node
+          DNS.3 = {{ hostvars[item].private_hostname.split('.')[0] }}
+          DNS.4 = {{ hostvars[item].private_hostname }}
+          DNS.5 = {{ hostvars[item].public_hostname }}
+          IP.1 = 127.0.0.1
+          IP.2 = {{ hostvars[item].private_ip }}
+          IP.3 = {{ hostvars[item].public_ip }}
+
+          {% for lb in certificates_loadbalancer %}
+          DNS.{{ loop.index + 5 }} = {{ hostvars[lb].private_hostname.split('.')[0] }}
+          DNS.{{ loop.index + 6 }} = {{ hostvars[lb].private_hostname }}
+          DNS.{{ loop.index + 7 }} = {{ hostvars[lb].public_hostname }}
+          IP.{{ loop.index + 3 }} = {{ hostvars[lb].private_ip }}
+          IP.{{ loop.index + 4 }} = {{ hostvars[lb].public_ip }}
+          {% endfor %}
+        dest: "{{ certificates_dir }}/node.{{ item }}.cnf"
+      loop: "{{ certificates_hosts }}"
+
+    - name: Create node key
+      ansible.builtin.shell: |
+        openssl genrsa \
+          -out {{ certificates_dir }}/node.{{ item }}.key 2048
+
+        chmod 400 {{ certificates_dir }}/node.{{ item }}.key
+      loop: "{{ certificates_hosts }}"
+
+    - name: Create node csr
+      ansible.builtin.shell: |
+        openssl req \
+          -new \
+          -config {{ certificates_dir }}/node.{{ item }}.cnf \
+          -key    {{ certificates_dir }}/node.{{ item }}.key \
+          -out    {{ certificates_dir }}/node.{{ item }}.csr \
+          -batch
+      loop: "{{ certificates_hosts }}"
+      
+    - name: Sign node csr with CA key and crt
+      ansible.builtin.shell: |
+        openssl ca \
+          -config  /var/lib/ca/ca.cnf \
+          -keyfile /var/lib/ca/ca.key \
+          -cert    /var/lib/ca/ca.crt \
+          -policy signing_policy \
+          -extensions signing_node_req \
+          -out {{ certificates_dir }}/node.{{ item }}.crt \
+          -outdir {{ certificates_dir }}/ \
+          -in {{ certificates_dir }}/node.{{ item }}.csr \
+          -batch
+      loop: "{{ certificates_hosts }}"
+
+    # Step 3. Create the certificate and key pair for the root user
+    - name: Create client.cnf for each username
+      ansible.builtin.copy:
+        content: |
+          [ req ]
+          prompt=no
+          distinguished_name = distinguished_name
+          req_extensions = extensions
+
+          [ distinguished_name ]
+          organizationName = {{ certificates_organization_name }}
+          commonName = {{ item }}
+
+          [ extensions ]
+          subjectAltName = DNS:{{ item }}
+        dest: "{{ certificates_dir }}/client.{{ item }}.cnf"
+      loop: "{{ certificates_usernames }}"
+
+    - name: Create client key pair for each username
+      ansible.builtin.shell: |
+        openssl genrsa \
+          -out {{ certificates_dir }}/client.{{ item }}.key 2048
+
+        chmod 400 {{ certificates_dir }}/client.{{ item }}.key
+      loop: "{{ certificates_usernames }}"
+
+    - name: Create client csr
+      ansible.builtin.shell: |
+        openssl req \
+          -new \
+          -config {{ certificates_dir }}/client.{{ item }}.cnf \
+          -key    {{ certificates_dir }}/client.{{ item }}.key \
+          -out    {{ certificates_dir }}/client.{{ item }}.csr \
+          -batch
+      loop: "{{ certificates_usernames }}"
+          
+    - name: Sign client csr with CA crt and key
+      ansible.builtin.shell: |
+        openssl ca \
+          -config  /var/lib/ca/ca.cnf \
+          -keyfile /var/lib/ca/ca.key \
+          -cert    /var/lib/ca/ca.crt \
+          -policy signing_policy \
+          -extensions signing_client_req \
+          -out {{ certificates_dir }}/client.{{ item }}.crt \
+          -outdir {{ certificates_dir }}/ \
+          -in {{ certificates_dir }}/client.{{ item }}.csr \
+          -batch
+      loop: "{{ certificates_usernames }}"
+
+
+- name: CONFIGURE OS
+  hosts: cockroachdb
+  gather_facts: yes
+  become: yes
+  tags:
+    - platform
+    - config_os
+  tasks:
+    - name: Set AWS facts
+      when: cloud == 'aws'
+      set_fact:
+        ntp_server: "server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4"
+
+    - name: Set GCP facts
+      when: cloud == 'gcp'
+      set_fact:
+        ntp_server: server metadata.google.internal iburst
+
+    - when: cloud == 'azure'
+      block:
+        - name: Azure only - disable NTP
+          shell: |
+            curl -O https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+            DEVICE_ID=`python3 lsvmbus -vv | grep -w "Time Synchronization" -A 1 | awk -F'[{}]' '{print $2}' | tail -n1`
+            echo $DEVICE_ID | sudo tee /sys/bus/vmbus/drivers/hv_utils/unbind
+          register: out
+
+        - name: Azure only - install NTP on debian
+          when: ansible_facts.os_family | lower == 'debian'
+          shell: |
+            apt update
+            apt remove -y chrony
+            apt install -y ntp
+
+        - name: Azure only - install NTP on redhat
+          when: ansible_facts.os_family | lower == 'redhat'
+          shell: |
+            yum remove chrony
+            yum install -y ntp
+
+        - name: Azure only - stop NTP
+          ansible.builtin.systemd:
+            name: ntp
+            state: stopped
+
+        - name: Azure only - update NTP config
+          shell: |
+            sed -i '/^pool.*/'d /etc/ntp.conf
+            sed -i '/^server.*/'d /etc/ntp.conf
+
+            cat - >> /etc/ntp.conf <<EOF
+            server time1.google.com iburst
+            server time2.google.com iburst
+            server time3.google.com iburst
+            server time4.google.com iburst
+            EOF
+
+        - name: Azure only - restart NTP
+          ansible.builtin.systemd:
+            name: ntp
+            state: restarted
+
+    - name: Set debian vars
+      when: ansible_facts.os_family | lower == 'debian'
+      set_fact:
+        ntp_deamon: chrony
+        ntp_conf: "/etc/chrony/chrony.conf"
+        ntp_package_name: chrony
+
+    - name: Set redhat vars
+      when: ansible_facts.os_family | lower == 'redhat'
+      set_fact:
+        ntp_deamon: chronyd
+        ntp_conf: "/etc/chrony.conf"
+        ntp_package_name: chrony
+
+    - name: AWS/GCP only - install chrony/ntp
+      when: cloud != 'azure'
+      package:
+        name: "{{ ntp_package_name }}"
+        state: latest
+
+    - name: AWS/GCP only - Add the preferred Chrony/NTP server
+      when: cloud != 'azure'
+      lineinfile:
+        path: "{{ ntp_conf }}"
+        line: "{{ ntp_server }}"
+
+    - name: AWS/GCP only - restart chrony/ntp
+      when: cloud != 'azure'
+      service:
+        name: "{{ ntp_deamon }}"
+        state: restarted
+
+    - name: Update VM swappiness
+      sysctl:
+        name: vm.swappiness
+        value: "0"
+        state: present
+        reload: yes
+
+    - name: Set timezone to UTC
+      ansible.builtin.shell: |
+        timedatectl set-timezone UTC
+
+    - name: Find attached disks bigger than 100GB
+      ansible.builtin.shell: |
+        lsblk -o NAME,TYPE,SIZE -p -n -b -s | \
+          awk '$NF ~ /[1-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/' | \
+          grep -v '└─' | \
+          grep disk | \
+          awk '{print $1}'
+      args:
+        executable: /bin/bash
+      register: _disks
+
+    - name: Create a ext4 filesystem
+      when: _disks.stdout_lines | length > 0
+      ansible.builtin.shell: |
+        mkfs.ext4 {{ item }}
+      failed_when: result.rc != 0 and 'will not make a filesystem here!' not in result.stderr
+      loop: "{{ _disks.stdout_lines }}"
+      register: result
+
+    # TODO set variable ansible_numa_nodes by using lscpu instead of relying on facts gathering
+    - name: install numactl if instance has NUMA nodes
+      when: ansible_numa_nodes > 1
+      block:
+        - name: install numactl on debian
+          when: ansible_facts.os_family | lower == 'debian'
+          apt:
+            name: numactl
+            state: latest
+            update_cache: yes
+
+        - name: install numactl on redhat
+          when: ansible_facts.os_family | lower == 'redhat'
+          yum:
+            name: numactl
+            state: latest
+
+
+
+- name: DEPLOY COCKROACHDB
+  hosts: cockroachdb
+  gather_facts: yes
+  become: yes
+  vars:
+    # cockroachdb_version: latest
+    cockroachdb_secure: yes
+    cockroachdb_certificates_dir: certs
+    cockroachdb_certificates_clients:
+      - root
+    cockroachdb_sql_port: 26257
+    cockroachdb_http_addr_ip: "0.0.0.0"
+    cockroachdb_http_addr_port: 8080
+    # cockroachdb_store:
+    #   - /mnt/cockroach
+    cockroachdb_secure_flag: --certs-dir=/var/lib/cockroach/certs
+    cockroachdb_insecure_flag: --insecure
+    cockroachdb_repo_url: https://binaries.cockroachdb.com
+    cockroachdb_join: 
+      - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].public_ip }}"
+      - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].public_ip }}"
+      - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].public_ip }}"
+
+    cockroachdb_locality: "cloud={{ cloud | default('') }},region={{ region | default('') }},zone={{ zone | default('') }}"
+    cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
+    cockroachdb_listen_addr: "0.0.0.0"
+    cockroachdb_attrs: std
+    cockroachdb_cache: ".35"
+    cockroachdb_max_sql_memory: ".35"
+    cockroachdb_env_vars: []
+    cockroachdb_rpc_port: 26357
+    cockroachdb_max_offset: 250ms
+  tags:
+    - platform
+    - cockroachdb
+  tasks:
+    - name: Create the binary-type map
+      ansible.builtin.set_fact:
+        # map the machine CPU type to the matching filename component
+        cockroachdb_binary_arch:
+          aarch64: arm64
+          x86_64: amd64
+
+    - name: Check that the CockroachDB tarball exists locally
+      stat:
+        path: cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+      register: _stat_result
+
+    - name: Download and install CockroachDB binary
+      ansible.builtin.shell: |
+        wget {{ cockroachdb_repo_url }}/cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+        tar xvf cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+        mv cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}/cockroach /usr/local/bin/cockroach
+        chmod 755 /usr/local/bin/cockroach
+        mkdir /usr/local/lib/cockroach/
+        mv cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }} /lib/libgeos*.so /usr/local/lib/cockroach/
+        rm -rf cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}
+      when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not _stat_result.stat.exists
+
+    - name: install MASTER binary
+      when: cockroachdb_version == "master"
+      ansible.builtin.shell: |
+        wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
+        chmod +x cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST
+        mv cockroach.linux-gnu-{{ cockroachdb_binary_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
+        rm -rf cockroach-*
+
+    - name: install custom binary
+      when: cockroachdb_version == "custom"
+      ansible.builtin.shell: |
+        wget {{ cockroachdb_custom_url }}
+        tar xvf *gz 
+        mv cockroach*/cockroach /usr/local/bin/cockroach
+        rm -rf cockroach-*
+
+    - name: Add the user cockroach
+      ansible.builtin.user:
+        name: cockroach
+        shell: /bin/bash
+
+    - name: Create CockroachDB store directory
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+        recurse: yes
+        owner: cockroach
+        group: cockroach
+      loop:
+        - /var/lib/cockroach
+        - /mnt/cockroach
+
+    - name: Create certs directory if it does not exist
+      when: cockroachdb_secure
+      file:
+        path: /var/lib/cockroach/certs
+        state: directory
+        owner: cockroach
+        group: cockroach
+        mode: "0755"
+
+    - name: Copy CA certificate
+      when: cockroachdb_secure
+      copy:
+        src: /var/lib/ca/ca.crt
+        dest: /var/lib/cockroach/certs/ca.crt
+
+    - name: Copy node certificate
+      when: cockroachdb_secure
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/node.{{ inventory_hostname }}.crt"
+        dest: /var/lib/cockroach/certs/node.crt
+
+    - name: Copy node key
+      when: cockroachdb_secure
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/node.{{ inventory_hostname }}.key"
+        dest: /var/lib/cockroach/certs/node.key
+        owner: cockroach
+        group: cockroach
+        mode: "0400"
+
+    - name: Copy client certificates crt
+      when: cockroachdb_secure
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/client.{{ item }}.crt"
+        dest: /var/lib/cockroach/certs
+        mode: "0400"
+      loop: "{{ cockroachdb_certificates_clients }}"
+
+    - name: Copy client certificates key
+      when: cockroachdb_secure
+      copy:
+        src: "{{ cockroachdb_certificates_dir }}/client.{{ item }}.key"
+        dest: /var/lib/cockroach/certs
+        mode: "0400"
+      loop: "{{ cockroachdb_certificates_clients }}"
+
+    - name: Find attached disks
+      shell: |
+        lsblk -o NAME,TYPE,SIZE -p -n -b -s | \
+          awk '$NF ~ /[1-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/' | \
+          grep -v '└─' | \
+          grep disk | \
+          awk '{print $1}'
+      args:
+        executable: /bin/bash
+      register: _disks
+
+    - name: Create CockroachDB store directories
+      when: _disks.stdout_lines | length > 0
+      file:
+        path: "/mnt/cockroach{{ idx }}"
+        state: directory
+        mode: "0755"
+        recurse: yes
+        owner: cockroach
+        group: cockroach
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+
+    - name: Mount the disks
+      when: _disks.stdout_lines | length > 0
+      ansible.posix.mount:
+        path: "/mnt/cockroach{{ idx }}"
+        src: "{{ item }}"
+        fstype: ext4
+        state: mounted
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+
+    - name: Reset permissions on mounted directory /mnt/cockroach
+      when: _disks.stdout_lines | length > 0
+      file:
+        path: "/mnt/cockroach{{ idx }}"
+        state: directory
+        mode: "0755"
+        owner: cockroach
+        group: cockroach
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+
+    - name: Reset cockroachdb_store
+      when: _disks.stdout_lines | length > 0
+      set_fact:
+        cockroachdb_store: []
+
+    - name: Set cockroachdb_store
+      when: _disks.stdout_lines | length > 0
+      set_fact:
+        cockroachdb_store: "{{ cockroachdb_store + ['/mnt/cockroach' + idx|string] }}"
+      loop: "{{ _disks.stdout_lines }}"
+      loop_control:
+        index_var: idx
+
+    - name: Copy systemd template cockroachdb.service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Cockroach Database cluster node
+          Requires=network.target
+          [Service]
+          Type=notify
+          WorkingDirectory=/var/lib/cockroach
+          {% for v in cockroachdb_env_vars %}
+          Environment="{{ v }}"
+          {% endfor %}
+          ExecStart=/usr/local/bin/cockroach start \
+              {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
+              {% for store in cockroachdb_store %}
+              --store={{ store }} \
+              {% endfor %}
+              --listen-addr={{ cockroachdb_listen_addr }}:{{ cockroachdb_rpc_port }} \
+              --advertise-addr={{ cockroachdb_advertise_addr }}:{{ cockroachdb_rpc_port }} \
+              --sql-addr=:{{ cockroachdb_sql_port }} \
+              --cache={{ cockroachdb_cache }} \
+              --max-sql-memory={{ cockroachdb_max_sql_memory }} \
+              --http-addr={{ cockroachdb_http_addr_ip }}:{{ cockroachdb_http_addr_port }} \
+              {% for join in cockroachdb_join %}
+              --join={{ join }}:{{ cockroachdb_rpc_port }} \
+              {% endfor %}
+              --locality={{ cockroachdb_locality }} \
+              --attrs={{ cockroachdb_attrs }} \
+              --max-offset={{ cockroachdb_max_offset }}
+          TimeoutStopSec=300
+          LimitNOFILE=65000
+          Restart=always
+          RestartSec=10
+          StandardOutput=syslog
+          StandardError=syslog
+          SyslogIdentifier=cockroach
+          User=cockroach
+          [Install]
+          WantedBy=default.target
+        dest: /etc/systemd/system/cockroachdb.service
+        mode: 0644
+        owner: root
+        group: root
+        backup: yes
+        force: yes
+
+    - name: Ensure cockroachdb service is restarted
+      ansible.builtin.systemd:
+        name: cockroachdb
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Init Cluster
+      run_once: yes
+      shell: |
+        cockroach init \
+        {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
+        --host={{ cockroachdb_join[0] }}:{{ cockroachdb_rpc_port }}
+      register: result
+      failed_when: result.rc != 0 and 'cluster has already been initialized' not in result.stderr and 'unable to bootstrap due to internal error' not in result.stderr
+
+
+- name: DEPLOY COCKROACHDB-HAPROXY
+  hosts: haproxy
+  gather_facts: yes
+  become: yes
+  vars:
+    haproxy_group: "{{ groups[cluster_name] | intersect(groups['cockroachdb']) }}"
+    haproxy_port: '26257'
+    haproxy_checkport: '8080'
+    haproxy_serverprefix: cockroach
+    # CRDB
+    # cockroachdb_version: latest
+    cockroachdb_repo_url: https://binaries.cockroachdb.com
+  tags:
+    - platform
+    - haproxy
+  tasks:
+    - name: Install haproxy on debian
+      when: ansible_facts.os_family | lower == 'debian'
+      shell: |
+        apt update
+        apt install -y haproxy
+
+    - name: Install haproxy on redhat
+      when: ansible_facts.os_family | lower == 'redhat'
+      shell: |
+        dnf update -y
+        dnf install -y haproxy
+
+    - name: Copy haproxy.cfg
+      ansible.builtin.copy:
+        content: |
+          global
+            maxconn 4096
+
+          defaults
+              mode                tcp
+              timeout connect     10s
+              timeout client      10m
+              timeout server      10m
+              # TCP keep-alive on client side. Server already enables them.
+              option              clitcpka
+
+          listen psql
+              bind :{{ haproxy_port }}
+              mode tcp
+              balance roundrobin
+              option httpchk GET {{ haproxy_checkport }}
+
+          {% for host in haproxy_group %}
+          {% set outer_loop = loop %}
+          {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
+          {% for idx in range(hostvars[host].ansible_numa_nodes|int) %}
+              server {{ haproxy_serverprefix }}{{ outer_loop.index * 100 + idx }} {{ hostvars[host].private_hostname }}:{{ haproxy_port|int + idx }} check port {{ haproxy_checkport|int + idx }}
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+
+          listen http
+              bind :{{ haproxy_checkport }}
+              mode tcp
+              balance roundrobin
+              option httpchk GET /health?ready=1
+
+          {% for host in haproxy_group %}
+          {% set outer_loop = loop %}
+          {% if hostvars[host].extra_vars.crdb_region | default(hostvars[host].region) == extra_vars.crdb_region | default(region) %}
+          {% for idx in range(hostvars[host].ansible_numa_nodes|int) %}
+              server {{ haproxy_serverprefix }}{{ outer_loop.index * 100 + idx }} {{ hostvars[host].private_hostname }}:{{ haproxy_checkport|int + idx }} check port {{ haproxy_checkport|int + idx }}
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+        dest: /etc/haproxy/haproxy.cfg
+        mode: 0644
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        backup: yes
+        force: yes
+
+    - name: Start haproxy
+      shell: |
+        systemctl restart haproxy
+
+    - name: Create the binary-type map
+      ansible.builtin.set_fact:
+        # map the machine CPU type to the matching filename component
+        cockroachdb_binary_arch:
+          aarch64: arm64
+          x86_64: amd64
+
+    - name: Check that the CockroachDB tarball exists locally
+      stat:
+        path: /root/cockroachdb_{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+      register: _stat_result
+
+    - name: Download and install CockroachDB binary
+      ansible.builtin.shell: |
+        wget {{ cockroachdb_repo_url }}/cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+        tar xvf cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}.tgz
+        mv cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}/cockroach /usr/local/bin/cockroach
+        chmod 755 /usr/local/bin/cockroach
+        rm -rf cockroach-{{ cockroachdb_version }}.linux-{{ cockroachdb_binary_arch[ansible_architecture] }}
+      when: not _stat_result.stat.exists
+
+  
+
+- name: SET CLUSTER SETTINGS FOR COCKROACHDB
+  hosts: cockroachdb
+  gather_facts: no
+  become: yes
+  vars:
+    cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
+  tags:
+    - app
+  tasks:
+    - name: CockroachDB - add regions to locations table
+      run_once: yes
+      shell: |
+        cockroach sql \
+          --host={{ cockroachdb_advertise_addr }} \
+          --certs-dir=/var/lib/cockroach/certs \
+          -e "UPSERT INTO system.locations VALUES 
+            ('region', 'us-east-1', 37.478397, -76.453077),
+            ('region', 'us-east-2', 40.417287, -76.453077),
+            ('region', 'us-west-1', 38.837522, -120.895824),
+            ('region', 'us-west-2', 43.804133, -120.554201),
+            ('region', 'ca-central-1', 56.130366, -106.346771),
+            ('region', 'eu-central-1', 50.110922, 8.682127),
+            ('region', 'eu-west-1', 53.142367, -7.692054),
+            ('region', 'eu-west-2', 51.507351, -0.127758),
+            ('region', 'eu-west-3', 48.856614, 2.352222),
+            ('region', 'ap-northeast-1', 35.689487, 139.691706),
+            ('region', 'ap-northeast-2', 37.566535, 126.977969),
+            ('region', 'ap-northeast-3', 34.693738, 135.502165),
+            ('region', 'ap-southeast-1', 1.352083, 103.819836),
+            ('region', 'ap-southeast-2', -33.86882, 151.209296),
+            ('region', 'ap-south-1', 19.075984, 72.877656),
+            ('region', 'sa-east-1', -23.55052, -46.633309),
+            ('region', 'eastasia', 22.267, 114.188),
+            ('region', 'southeastasia', 1.283, 103.833),
+            ('region', 'centralus', 41.5908, -93.6208),
+            ('region', 'eastus', 37.3719, -79.8164),
+            ('region', 'eastus2', 36.6681, -78.3889),
+            ('region', 'westcentralus', 40, -110),
+            ('region', 'northcentralus', 41.8819, -87.6278),
+            ('region', 'southcentralus', 29.4167, -98.5),       
+            ('region', 'westus', 37.783, -122.417),
+            ('region', 'westus2', 47, -119),
+            ('region', 'westus3', 33, -112),
+            ('region', 'northeurope', 53.3478, -6.2597),
+            ('region', 'westeurope', 52.3667, 4.9),
+            ('region', 'japanwest', 34.6939, 135.5022),
+            ('region', 'japaneast', 35.68, 139.77),
+            ('region', 'brazilsouth', -23.55, -46.633),
+            ('region', 'australiaeast', -33.86, 151.2094),
+            ('region', 'australiasoutheast', -37.8136, 144.9631),
+            ('region', 'southindia', 12.9822, 80.1636),
+            ('region', 'centralindia', 18.5822, 73.9197),
+            ('region', 'westindia', 19.088, 72.868),
+            ('region', 'canadacentral', 43.653, -79.383),
+            ('region', 'canadaeast', 46.817, -71.217),
+            ('region', 'uksouth', 50.941, -0.799),
+            ('region', 'ukwest', 53.427, -3.084),
+            ('region', 'westcentralus', 40.890, -110.234),
+            ('region', 'westus2', 47.233, -119.852),
+            ('region', 'westus3', 33, -112),
+            ('region', 'koreacentral', 37.5665, 126.9780),
+            ('region', 'koreasouth', 35.1796, 129.0756),
+            ('region', 'francecentral', 46.3772, 2.3730),
+            ('region', 'francesouth', 43.8345, 2.1972),
+            ('region', 'us-east1', 33.836082, -81.163727),
+            ('region', 'us-east4', 37.478397, -76.453077),
+            ('region', 'us-central1', 42.032974, -93.581543),
+            ('region', 'us-west1', 43.804133, -120.554201),
+            ('region', 'us-west4', 36.1955, -115.1538),
+            ('region', 'northamerica-northeast1', 56.130366, -106.346771),
+            ('region', 'europe-west1', 50.44816, 3.81886),
+            ('region', 'europe-west2', 51.507351, -0.127758),
+            ('region', 'europe-west3', 50.110922, 8.682127),
+            ('region', 'europe-west4', 53.4386, 6.8355),
+            ('region', 'europe-west6', 47.3769, 8.5417),
+            ('region', 'europe-north1', 60.5702, 27.1877),
+            ('region', 'asia-east1', 24.0717, 120.5624),
+            ('region', 'asia-northeast1', 35.689487, 139.691706),
+            ('region', 'asia-southeast1', 1.352083, 103.819836),
+            ('region', 'australia-southeast1', -33.86882, 151.209296),
+            ('region', 'asia-south1', 19.075984, 72.877656),
+            ('region', 'asia-southeast2', -6.2075, 106.8449),
+            ('region', 'asia-northeast2', 34.8172, 135.4976),
+            ('region', 'southafricanorth', -27.049240, 29.172484),
+            ('region', 'me-west1', 32.075206, 35.030164),
+            ('region', 'southamerica-west1', -33.442004, -70.426019),
+            ('region', 'southamerica-east1', -23.55052, -46.633309)
+            ;"
+
+    - name: CockroachDB - set cluster.organization
+      run_once: yes
+      shell: |
+        cockroach sql \
+          --host={{ cockroachdb_advertise_addr }} \
+          --certs-dir=/var/lib/cockroach/certs \
+          -e "SET CLUSTER SETTING cluster.organization = '{{ cockroachdb_cluster_organization }}';"
+    
+    - name: CockroachDB - set enterprise.license
+      run_once: yes
+      shell: |
+        cockroach sql \
+          --host={{ cockroachdb_advertise_addr }} \
+          --certs-dir=/var/lib/cockroach/certs \
+          -e "SET CLUSTER SETTING enterprise.license = '{{ cockroachdb_enterprise_license }}';"
+
+    - name: CockroachDB - create admin user
+      run_once: yes
+      shell: |
+        cockroach sql \
+          --host={{ cockroachdb_advertise_addr }} \
+          --certs-dir=/var/lib/cockroach/certs \
+          -e "CREATE USER {{ item.name }} WITH password {{ "'" + item.password + "'" }};"
+      loop: "{{ dbusers }}"
+      failed_when: result.rc != 0 and 'already exists' not in result.stderr
+      register: result
+
+    - name: CockroachDB - grant admin to user
+      run_once: yes
+      shell: |
+        cockroach sql \
+          --host={{ cockroachdb_advertise_addr }} \
+          --certs-dir=/var/lib/cockroach/certs \
+          -e "GRANT admin TO {{ item.name }};"
+      loop: "{{ dbusers }}"
+      when: item.is_admin
+    
+    - name: Data
+      ansible.builtin.debug:
+        msg: 
+          cockroachdb: "{{ groups['cockroachdb'] }}"
+          haproxy: "{{ groups['haproxy'] }}"
+          hv: "{{ hostvars }}"
+          
