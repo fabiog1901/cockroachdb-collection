@@ -1,6 +1,0 @@
----
-- name: install numactl
-  yum:
-    name: numactl
-    state: latest
-    

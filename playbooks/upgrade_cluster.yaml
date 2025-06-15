@@ -1,0 +1,85 @@
+---
+- name: UPGRADE COCKROACHDB
+  hosts: cockroachdb
+  gather_facts: yes
+  become: yes
+  vars:
+    cockroachdb_version: latest
+    iknowwhatiamdoing: no
+    cockroachdb_autofinalize: yes
+    cockroachdb_upgrade_delay: 120
+    cockroachdb_advertise_addr: "{{ public_ip }}"
+    cockroachdb_repo_url: https://binaries.cockroachdb.com
+  tasks:
+    - name: get current cockroachdb version
+      shell: |
+        cockroach version | head -n1 | awk '{print $3}'
+      register: out
+
+    - name: preserve downgrade
+      run_once: yes
+      ansible.builtin.shell: |
+        cockroach sql \
+          --certs-dir=/var/lib/cockroach/certs \
+          --host={{ cockroachdb_advertise_addr }} \
+          -e "SET CLUSTER SETTING cluster.preserve_downgrade_option = '{{ out.stdout[1:5] }}';"
+      when: not cockroachdb_autofinalize
+
+    - name: Check that the CockroachDB tarball exists locally
+      stat:
+        path: cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
+      register: out
+
+    - name: Download CockroachDB binary
+      ansible.builtin.shell: |
+        wget -q {{ cockroachdb_repo_url }}/cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
+      when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not out.stat.exists
+    
+    - name: Install CockroachDB binary
+      ansible.builtin.shell: |
+        tar xvf cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
+        mv cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}/cockroach /usr/local/bin/cockroach
+        chmod 755 /usr/local/bin/cockroach
+        mkdir /usr/local/lib/cockroach/
+        mv cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}/lib/libgeos*.so /usr/local/lib/cockroach/
+        rm -rf cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}
+    
+    - name: install MASTER binary
+      when: cockroachdb_version == "master"
+      ansible.builtin.shell: |
+        wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST
+        chmod +x cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST
+        mv cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
+        rm -rf cockroach-*
+
+    - name: install custom binary
+      when: cockroachdb_version == "custom"
+      ansible.builtin.shell: |
+        wget {{ cockroachdb_custom_url }}
+        tar xvf *gz 
+        mv cockroach*/cockroach /usr/local/bin/cockroach
+        rm -rf cockroach-*
+
+    - name: Ensure cockroachdb service is restarted
+      ansible.builtin.systemd:
+        name: cockroachdb
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+      when: ansible_numa_nodes <= 1
+
+    - name: Ensure cockroachdb services are restarted for NUMA nodes
+      when: ansible_numa_nodes > 1
+      ansible.builtin.systemd:
+        name: cockroachdb-{{ numa_idx|string }}
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+      loop: "{{ range(ansible_numa_nodes) }}"
+      loop_control:
+        index_var: numa_idx
+
+    - name: Pause between node upgrades
+      ansible.builtin.pause:
+        seconds: "{{ cockroachdb_upgrade_delay }}"
+      when: cockroachdb_deployment_type == 'upgrade' and ansible_numa_nodes <= 1

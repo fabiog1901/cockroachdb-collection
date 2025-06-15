@@ -1,0 +1,168 @@
+---
+- name: INSTALL MIT KDC CLIENT
+  hosts: krb5_client
+  gather_facts: yes
+  become: yes
+  tags:
+    - platform
+    - mitkdc
+    - krb_client
+  tasks:
+    - name: install krb5 on debian
+      when: ansible_facts.os_family | lower == 'debian'
+      apt:
+        name:
+          - krb5-user
+        state: present
+        update_cache: yes
+
+    - name: install krb5 on redhat
+      when: ansible_facts.os_family | lower == 'redhat''
+      yum:
+        name:
+          - krb5-libs
+          - krb5-workstation
+        state: present
+
+    - name: copy krb5.conf
+      copy:
+        content: |
+          [libdefaults]
+            default_realm = {{ krb5_realm | upper }}
+            dns_lookup_kdc = false
+            dns_lookup_realm = false
+            ticket_lifetime = 86400
+            renew_lifetime = 604800
+            forwardable = true
+            default_tgs_enctypes = {{ krb5_enc_types }}
+            default_tkt_enctypes = {{ krb5_enc_types }}
+            permitted_enctypes = {{ krb5_enc_types }}
+            udp_preference_limit = 1
+            kdc_timeout = 3000
+
+          [realms]
+            {{ krb5_realm | upper }} = {
+              kdc = {{ krb5_kdc_host }}
+              admin_server = {{ krb5_kdc_host}}
+            }
+
+          [domain_realm]
+
+        dest: /etc/krb5.conf
+        mode: 0644
+        owner: root
+        group: root
+        backup: yes
+        force: yes
+
+
+- name: INSTALL MIT KDC SERVER
+  hosts: krb5_server
+  gather_facts: yes
+  become: yes
+  tasks:
+    - when: ansible_facts.os_family | lower == 'debian'
+      block:
+        - name: Set directory vars on debian
+          set_facts:
+            krb5kdc_dir: /etc/krb5kdc
+            principal_dir: /var/lib/krb5kdc
+            krb5_daemons:
+              - krb5-admin-server
+              - krb5-kdc
+
+        - name: Install krb server on debian
+          apt:
+            name:
+              - krb5-kdc
+              - krb5-admin-server
+              - krb5-config
+            state: present
+            update_cache: yes
+
+    - when: ansible_facts.os_family | lower == 'redhat'
+      block:
+        - name: Set directory vars on redhat
+          set_facts:
+            krb5kdc_dir: /var/kerberos/krb5kdc
+            principal_dir: /var/kerberos/krb5kdc
+            krb5_daemons:
+              - krb5kdc
+              - kadmin
+
+        - name: Install krb server on redhat
+          yum:
+            name:
+              - krb5-libs
+              - krb5-server
+            state: installed
+
+    - name: Set kdc.conf
+      ansible.builtin.copy:
+        content: |
+          [kdcdefaults]
+            kdc_ports = 750,88
+
+          [realms]
+            {{ krb5_realm | upper }} = {
+              max_renewable_life = 7d
+              key_stash_file = {{ krb5kdc_dir }}/stash
+              master_key_type = aes256-cts
+              acl_file = {{ krb5kdc_dir }}/kadm5.acl
+              dict_file = /usr/share/dict/words
+              admin_keytab = {{ krb5kdc_dir }}/kadm5.keytab
+              supported_enctypes = {{ krb5_enc_types }}
+            }
+        dest: "{{ krb5kdc_dir }}/kdc.conf"
+        backup: yes
+
+    - name: Set krb5.conf
+      copy:
+        content: |
+          [libdefaults]
+            default_realm = {{ krb5_realm | upper }}
+            dns_lookup_kdc = false
+            dns_lookup_realm = false
+            ticket_lifetime = 86400
+            renew_lifetime = 604800
+            forwardable = true
+            default_tgs_enctypes = {{ krb5_enc_types }}
+            default_tkt_enctypes = {{ krb5_enc_types }}
+            permitted_enctypes = {{ krb5_enc_types }}
+            udp_preference_limit = 1
+            kdc_timeout = 3000
+
+          [logging]
+            default = FILE:/var/log/krb5libs.log
+            kdc = FILE:/var/log/krb5kdc.log
+            admin_server = FILE:/var/log/kadmind.log
+
+          [realms]
+            {{ krb5_realm | upper }} = {
+              kdc = {{ krb5_kdc_host }}
+              admin_server = {{ krb5_kdc_host}}
+            }
+
+          [domain_realm]
+        dest: /etc/krb5.conf
+        backup: yes
+
+    - name: Create KDC database
+      command: "/usr/sbin/kdb5_util create -s -P {{ krb5_kdc_master_passwd }}"
+      args:
+        creates: "{{ principal_dir }}/principal"
+
+    - name: Set kadm5.acl
+      copy:
+        content: |
+          */admin@{{ krb5_realm | upper }}  *
+        dest: "{{ krb5kdc_dir }}/kadm5.acl"
+        backup: yes
+
+    - name: Start Kerberos
+      service:
+        name: "{{ item }}"
+        state: restarted
+        enabled: yes
+      loop: "{{ krb5_daemons }}"
+

@@ -1,6 +1,0 @@
----
-krb5kdc_dir: /var/kerberos/krb5kdc
-principal_dir: /var/kerberos/krb5kdc
-krb5_daemons:
-  - krb5kdc
-  - kadmin

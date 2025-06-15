@@ -167,75 +167,6 @@
 ##############
 #  PLATFORM  #
 ##############
-- name: INSTALL MIT KDC CLIENT
-  hosts: krb5_client
-  gather_facts: yes
-  become: yes
-  tags:
-    - platform
-    - mitkdc
-    - krb_client
-  tasks:
-    - name: install krb5 on debian
-      when: ansible_facts.os_family | lower == 'debian'
-      apt:
-        name:
-          - krb5-user
-        state: present
-        update_cache: yes
-
-    - name: install krb5 on redhat
-      when: ansible_facts.os_family | lower == 'redhat''
-      yum:
-        name:
-          - krb5-libs
-          - krb5-workstation
-        state: present
-
-    - name: copy krb5.conf
-      copy:
-        content: |
-          [libdefaults]
-            default_realm = {{ krb5_realm | upper }}
-            dns_lookup_kdc = false
-            dns_lookup_realm = false
-            ticket_lifetime = 86400
-            renew_lifetime = 604800
-            forwardable = true
-            default_tgs_enctypes = {{ krb5_enc_types }}
-            default_tkt_enctypes = {{ krb5_enc_types }}
-            permitted_enctypes = {{ krb5_enc_types }}
-            udp_preference_limit = 1
-            kdc_timeout = 3000
-
-          [realms]
-            {{ krb5_realm | upper }} = {
-              kdc = {{ krb5_kdc_host }}
-              admin_server = {{ krb5_kdc_host}}
-            }
-
-          [domain_realm]
-
-        dest: /etc/krb5.conf
-        mode: 0644
-        owner: root
-        group: root
-        backup: yes
-        force: yes
-  
-- name: INSTALL MIT KDC SERVER
-  hosts: krb5_server
-  gather_facts: yes
-  become: yes
-  tasks:
-    - name: install MIT KDC server
-      include_role:
-        name: fabiog1901.cockroachdb.krb_server
-  tags:
-    - platform
-    - mitkdc
-    - krb_server
-
 - name: GENERATE COCKROACHDB CERTS
   hosts: localhost
   gather_facts: yes
@@ -580,9 +511,18 @@
       loop: "{{ _disks.stdout_lines }}"
       register: result
 
-    # TODO set variable ansible_numa_nodes by using lscpu instead of relying on facts gathering
+    - name: execute lscpu to find numa nodes count
+      shell: |
+          lscpu
+      register: out
+    
+    - set_fact:
+        ansible_numa_nodes: "{{ item.split(':')[1].strip() }}"
+      when: item.startswith("NUMA node(s):")
+      loop: "{{ out.stdout_lines }}"
+  
     - name: install numactl if instance has NUMA nodes
-      when: ansible_numa_nodes > 1
+      when: ansible_numa_nodes | int > 1
       block:
         - name: install numactl on debian
           when: ansible_facts.os_family | lower == 'debian'
@@ -596,7 +536,6 @@
           yum:
             name: numactl
             state: latest
-
 
 
 - name: DEPLOY COCKROACHDB
@@ -801,6 +740,7 @@
         index_var: idx
 
     - name: Copy systemd template cockroachdb.service
+      when: ansible_numa_nodes <= 1
       ansible.builtin.copy:
         content: |
           [Unit]
@@ -846,12 +786,72 @@
         backup: yes
         force: yes
 
+    - name: create individual systemd unit files for each NUMA node
+      when: ansible_numa_nodes > 1
+      ansible.builtin.copy: |
+        [Unit]
+        Description=Cockroach Database cluster node
+        Requires=network.target
+        [Service]
+        Type=notify
+        WorkingDirectory=/var/lib/cockroach
+        {% for v in cockroachdb_env_vars %}
+        Environment="{{ v }}"
+        {% endfor %}
+        ExecStart=/usr/bin/numactl --cpunodebind={{ numa_idx }} --membind={{ numa_idx }} -- \
+            /usr/local/bin/cockroach start \
+            {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
+            --store={{ '/mnt/cockroach' + numa_idx|string }} \
+            --listen-addr={{ cockroachdb_listen_addr }}:{{ cockroachdb_rpc_port|int + numa_idx|int }} \
+            --advertise-addr={{ cockroachdb_advertise_addr }}:{{ cockroachdb_rpc_port|int + numa_idx|int }} \
+            --sql-addr=:{{ cockroachdb_sql_port|int + numa_idx|int }} \
+            --cache={{ cockroachdb_cache }} \
+            --max-sql-memory={{ cockroachdb_max_sql_memory }} \
+            --http-addr={{ cockroachdb_http_addr_ip }}:{{ cockroachdb_http_addr_port|int + numa_idx|int }} \
+            {% for join in cockroachdb_join %}
+            --join={{ join }}:{{ cockroachdb_rpc_port }} \
+            {% endfor %}
+            --locality={{ cockroachdb_locality }} \
+            --attrs={{ cockroachdb_attrs }} \
+            --max-offset={{ cockroachdb_max_offset }}
+        TimeoutStopSec=300
+        LimitNOFILE=65000
+        Restart=always
+        RestartSec=10
+        StandardOutput=syslog
+        StandardError=syslog
+        SyslogIdentifier={{ 'cockroach-' + numa_idx|string }}
+        User=cockroach
+        [Install]
+        WantedBy=default.target
+      dest: /etc/systemd/system/cockroachdb-{{ numa_idx|string }}.service
+      mode: 0644
+      owner: root
+      group: root
+      backup: yes
+      force: yes
+      loop: "{{ range(ansible_numa_nodes) }}"
+      loop_control:
+        index_var: numa_idx
+
     - name: Ensure cockroachdb service is restarted
       ansible.builtin.systemd:
         name: cockroachdb
         state: restarted
         enabled: yes
         daemon_reload: yes
+      when: ansible_numa_nodes <= 1
+
+    - name: Ensure cockroachdb services are restarted for NUMA nodes
+      when: ansible_numa_nodes > 1
+      ansible.builtin.systemd:
+        name: cockroachdb-{{ numa_idx|string }}
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+      loop: "{{ range(ansible_numa_nodes) }}"
+      loop_control:
+        index_var: numa_idx
 
     - name: Init Cluster
       run_once: yes
@@ -1095,11 +1095,11 @@
           -e "GRANT admin TO {{ item.name }};"
       loop: "{{ dbusers }}"
       when: item.is_admin
-    
+
     - name: List nodes
+      run_once: yes
       ansible.builtin.debug:
         msg: 
-          cockroachdb: "{{ groups['cockroachdb'] }}"
           haproxy: "{{ groups['haproxy'] }}"
-          # hv: "{{ hostvars }}"
+          cockroachdb: "{{ groups['cockroachdb'] }}"
           

@@ -1,7 +1,0 @@
----
-krb5kdc_dir: /etc/krb5kdc
-principal_dir: /var/lib/krb5kdc
-krb5_daemons:
-  - krb5-admin-server
-  - krb5-kdc
-  

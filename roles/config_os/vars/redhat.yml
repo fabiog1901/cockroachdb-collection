@@ -1,4 +1,0 @@
----
-ntp_deamon: chronyd
-ntp_conf: "/etc/chrony.conf"
-ntp_package_name: chrony

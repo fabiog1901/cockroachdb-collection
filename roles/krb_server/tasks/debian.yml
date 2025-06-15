@@ -1,9 +1,0 @@
----
-- name: install krb5
-  apt:
-    name:
-      - krb5-kdc
-      - krb5-admin-server
-      - krb5-config
-    state: present
-    update_cache: yes
