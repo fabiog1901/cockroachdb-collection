@@ -513,16 +513,15 @@
 
     - name: execute lscpu to find numa nodes count
       shell: |
-          lscpu
+          lscpu | grep "NUMA node(s):" | cut -d":" -f2 | tr -d '[:space:]'
       register: out
     
-    - set_fact:
-        ansible_numa_nodes: "{{ item.split(':')[1].strip() }}"
-      when: item.startswith("NUMA node(s):")
-      loop: "{{ out.stdout_lines }}"
+    - name: Set fact ansible_numa_nodes
+      set_fact:
+        ansible_numa_nodes: "{{ out.stdout }}"
   
     - name: install numactl if instance has NUMA nodes
-      when: ansible_numa_nodes | int > 1
+      when: ansible_numa_nodes|int > 1
       block:
         - name: install numactl on debian
           when: ansible_facts.os_family | lower == 'debian'
@@ -740,7 +739,7 @@
         index_var: idx
 
     - name: Copy systemd template cockroachdb.service
-      when: ansible_numa_nodes <= 1
+      when: ansible_numa_nodes|int <= 1
       ansible.builtin.copy:
         content: |
           [Unit]
@@ -772,6 +771,7 @@
           TimeoutStopSec=300
           LimitNOFILE=65000
           Restart=always
+          RestartPreventExitStatus=SIGKILL
           RestartSec=10
           StandardOutput=syslog
           StandardError=syslog
@@ -787,7 +787,7 @@
         force: yes
 
     - name: create individual systemd unit files for each NUMA node
-      when: ansible_numa_nodes > 1
+      when: ansible_numa_nodes|int > 1
       ansible.builtin.copy: |
         [Unit]
         Description=Cockroach Database cluster node
@@ -830,7 +830,7 @@
       group: root
       backup: yes
       force: yes
-      loop: "{{ range(ansible_numa_nodes) }}"
+      loop: "{{ range(ansible_numa_nodes|int) }}"
       loop_control:
         index_var: numa_idx
 
@@ -840,16 +840,16 @@
         state: restarted
         enabled: yes
         daemon_reload: yes
-      when: ansible_numa_nodes <= 1
+      when: ansible_numa_nodes|int <= 1
 
     - name: Ensure cockroachdb services are restarted for NUMA nodes
-      when: ansible_numa_nodes > 1
+      when: ansible_numa_nodes|int > 1
       ansible.builtin.systemd:
         name: cockroachdb-{{ numa_idx|string }}
         state: restarted
         enabled: yes
         daemon_reload: yes
-      loop: "{{ range(ansible_numa_nodes) }}"
+      loop: "{{ range(ansible_numa_nodes|int) }}"
       loop_control:
         index_var: numa_idx
 
@@ -968,7 +968,7 @@
         mv cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}/cockroach /usr/local/bin/cockroach
         chmod 755 /usr/local/bin/cockroach
         rm -rf cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}
-  
+
 
 - name: SET CLUSTER SETTINGS FOR COCKROACHDB
   hosts: cockroachdb
@@ -1103,3 +1103,54 @@
           haproxy: "{{ groups['haproxy'] }}"
           cockroachdb: "{{ groups['cockroachdb'] }}"
           
+- name: COPY CRT+KEY TO APP SERVERS + MISC TASKS
+  hosts: app
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: install cockroachdb sql client
+      include_role:
+        name: fabiog1901.cockroachdb.cockroachdb
+      vars:
+        cockroachdb_deployment_type: install only
+
+    - name: install pipx
+      shell: |
+        apt update
+        apt install -y python3-pip pipx sysstat
+    
+    - name: install dbworkload
+      become: no
+      shell: |
+        pipx install dbworkload[postgres]
+        pipx ensurepath
+
+    - name: Copy client key
+      ansible.builtin.copy:
+        src: "certs/certs/client.{{ item.name }}.key"
+        dest: "client.{{ item.name }}.key"
+        mode: "0400"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: cockroachdb_secure and item.is_cert
+      loop: "{{ dbusers }}"
+
+    - name: Copy client cert
+      ansible.builtin.copy:
+        src: certs/certs/client.{{ item.name }}.crt
+        dest: "client.{{ item.name }}.crt"
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: cockroachdb_secure and item.is_cert
+      loop: "{{ dbusers }}"
+
+    - name: Copy ca.crt
+      ansible.builtin.copy:
+        src: certs/certs/ca.crt
+        dest: "ca.crt"
+        mode: "0644"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: cockroachdb_secure
+  

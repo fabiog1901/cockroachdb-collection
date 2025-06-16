@@ -166,3 +166,70 @@
         enabled: yes
       loop: "{{ krb5_daemons }}"
 
+#################
+#  APPLICATION  #
+#################
+- name: CREATE KERBEROS USERS AND KEYTABS
+  hosts: krb5_server
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: create user and keytab in /etc/krb5.keytab
+      shell: |
+        kadmin.local addprinc -pw cockroach {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].public_ip }}@{{ krb5_realm }}
+        kadmin.local addprinc -pw cockroach {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].public_hostname }}@{{ krb5_realm }}
+        kadmin.local addprinc -pw cockroach {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].private_ip }}@{{ krb5_realm }}
+        kadmin.local addprinc -pw cockroach {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].private_hostname }}@{{ krb5_realm }}
+
+        kadmin.local ktadd {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].public_ip }}@{{ krb5_realm }}
+        kadmin.local ktadd {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].public_hostname }}@{{ krb5_realm }}
+        kadmin.local ktadd {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].private_ip }}@{{ krb5_realm }}
+        kadmin.local ktadd {{ cockroachdb_krbsrvname | default('postgres') }}/{{ hostvars[item].private_hostname }}@{{ krb5_realm }}
+
+      loop: "{{ groups['haproxy'] }}"
+
+    - name: add principals for the database users
+      shell: |
+        kadmin.local addprinc -pw {{ item.password }} {{ item.name }}@{{ krb5_realm }}
+      loop: "{{ krb5_principals }}"
+      register: result
+      failed_when: result.rc != 0 and 'Principal or policy already exists while creating' not in result.stderr
+
+    - name: Download keytab
+      ansible.builtin.fetch:
+        src: /etc/krb5.keytab
+        dest: /tmp/cockroach.keytab
+        flat: yes
+  tags:
+    - app
+
+- name: COPY KEYTAB TO NODES
+  hosts: cockroachdb
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Copy file with owner and permissions
+      ansible.builtin.copy:
+        src: /tmp/cockroach.keytab
+        dest: /var/lib/cockroach/cockroach.keytab
+        mode: "0644"
+      when: cockroachdb_krb
+  tags:
+    - app
+
+
+- name: SET CLUSTER SETTINGS FOR COCKROACHDB
+  hosts: cockroachdb
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: cockroachdb - set hba.conf setting
+      run_once: yes
+      shell: |
+        cockroach sql \
+          {{ (cockroachdb_secure) | ternary('--certs-dir=/var/lib/cockroach/certs', '--insecure') }} \
+          --host={{ cockroachdb_advertise_addr }} \
+          -e "SET cluster setting server.host_based_authentication.configuration = 'host all app all cert-password
+          host all all all gss include_realm=0';"
+      when: cockroachdb_krb
+
