@@ -182,14 +182,15 @@
     certificates_usernames:
       - root
     certificates_hosts: "{{ groups['cockroachdb'] }}"
-    certificates_loadbalancer: "{{ groups['haproxy'] }}"
+    certificates_loadbalancer: "{{ groups['haproxy'] | default([]) }}"
   tags:
     - platform
     - certificates
   tasks:
     - name: Recreate certificate directory
       ansible.builtin.shell: |
-        echo > {{ ca_dir }}/index.txt
+        rm {{ ca_dir }}/index.txt
+        touch {{ ca_dir }}/index.txt
         echo '01' > {{ ca_dir }}/serial.txt
 
         rm -rf "{{ certificates_dir }}"
@@ -470,7 +471,8 @@
   gather_facts: yes
   become: yes
   vars:
-    cockroachdb_version: latest
+    ca_dir: /var/lib/ca
+    cockroachdb_version: v25.2.1
     cockroachdb_secure: yes
     cockroachdb_certificates_dir: certs
     cockroachdb_certificates_clients:
@@ -715,49 +717,50 @@
 
     - name: create individual systemd unit files for each NUMA node
       when: ansible_numa_nodes|int > 1
-      ansible.builtin.copy: |
-        [Unit]
-        Description=Cockroach Database cluster node
-        Requires=network.target
-        [Service]
-        Type=notify
-        WorkingDirectory=/var/lib/cockroach
-        {% for v in cockroachdb_env_vars %}
-        Environment="{{ v }}"
-        {% endfor %}
-        ExecStart=/usr/bin/numactl --cpunodebind={{ numa_idx }} --membind={{ numa_idx }} -- \
-            /usr/local/bin/cockroach start \
-            {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
-            --store={{ '/mnt/cockroach' + numa_idx|string }} \
-            --listen-addr={{ cockroachdb_listen_addr }}:{{ cockroachdb_rpc_port|int + numa_idx|int }} \
-            --advertise-addr={{ cockroachdb_advertise_addr }}:{{ cockroachdb_rpc_port|int + numa_idx|int }} \
-            --sql-addr=:{{ cockroachdb_sql_port|int + numa_idx|int }} \
-            --cache={{ cockroachdb_cache }} \
-            --max-sql-memory={{ cockroachdb_max_sql_memory }} \
-            --http-addr={{ cockroachdb_http_addr_ip }}:{{ cockroachdb_http_addr_port|int + numa_idx|int }} \
-            {% for join in cockroachdb_join %}
-            --join={{ join }}:{{ cockroachdb_rpc_port }} \
-            {% endfor %}
-            --locality={{ cockroachdb_locality }} \
-            --attrs={{ cockroachdb_attrs }} \
-            --max-offset={{ cockroachdb_max_offset }}
-        TimeoutStopSec=300
-        LimitNOFILE=65000
-        Restart=always
-        RestartPreventExitStatus=SIGKILL
-        RestartSec=10
-        StandardOutput=syslog
-        StandardError=syslog
-        SyslogIdentifier={{ 'cockroach-' + numa_idx|string }}
-        User=cockroach
-        [Install]
-        WantedBy=default.target
-      dest: /etc/systemd/system/cockroachdb-{{ numa_idx|string }}.service
-      mode: 0644
-      owner: root
-      group: root
-      backup: yes
-      force: yes
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Cockroach Database cluster node
+          Requires=network.target
+          [Service]
+          Type=notify
+          WorkingDirectory=/var/lib/cockroach
+          {% for v in cockroachdb_env_vars %}
+          Environment="{{ v }}"
+          {% endfor %}
+          ExecStart=/usr/bin/numactl --cpunodebind={{ numa_idx }} --membind={{ numa_idx }} -- \
+              /usr/local/bin/cockroach start \
+              {{ (cockroachdb_secure) | ternary(cockroachdb_secure_flag, cockroachdb_insecure_flag) }} \
+              --store={{ '/mnt/cockroach' + numa_idx|string }} \
+              --listen-addr={{ cockroachdb_listen_addr }}:{{ cockroachdb_rpc_port|int + numa_idx|int }} \
+              --advertise-addr={{ cockroachdb_advertise_addr }}:{{ cockroachdb_rpc_port|int + numa_idx|int }} \
+              --sql-addr=:{{ cockroachdb_sql_port|int + numa_idx|int }} \
+              --cache={{ cockroachdb_cache }} \
+              --max-sql-memory={{ cockroachdb_max_sql_memory }} \
+              --http-addr={{ cockroachdb_http_addr_ip }}:{{ cockroachdb_http_addr_port|int + numa_idx|int }} \
+              {% for join in cockroachdb_join %}
+              --join={{ join }}:{{ cockroachdb_rpc_port }} \
+              {% endfor %}
+              --locality={{ cockroachdb_locality }} \
+              --attrs={{ cockroachdb_attrs }} \
+              --max-offset={{ cockroachdb_max_offset }}
+          TimeoutStopSec=300
+          LimitNOFILE=65000
+          Restart=always
+          RestartPreventExitStatus=SIGKILL
+          RestartSec=10
+          StandardOutput=syslog
+          StandardError=syslog
+          SyslogIdentifier={{ 'cockroach-' + numa_idx|string }}
+          User=cockroach
+          [Install]
+          WantedBy=default.target
+          dest: /etc/systemd/system/cockroachdb-{{ numa_idx|string }}.service
+          mode: 0644
+        owner: root
+        group: root
+        backup: yes
+        force: yes
       loop: "{{ range(ansible_numa_nodes|int) }}"
       loop_control:
         index_var: numa_idx
@@ -1035,6 +1038,6 @@
       run_once: yes
       ansible.builtin.debug:
         msg: 
-          haproxy: "{{ groups['haproxy'] }}"
+          haproxy: "{{ groups['haproxy'] | default([]) }}"
           cockroachdb: "{{ groups['cockroachdb'] }}"
   
