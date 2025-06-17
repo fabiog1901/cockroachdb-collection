@@ -1,7 +1,11 @@
 ---
 deployment_id: quantum
-owner: fabio
-state: present
+
+# COCKROACHDB
+cockroachdb_version: latest
+cockroachdb_cluster_organization: Workshop
+cockroachdb_enterprise_license: crl-0-EO7clJsGGAIiCFdvcmtzaG9w
+
 
 regions:
   defaults: &regions
@@ -9,7 +13,7 @@ regions:
     public_ip: yes
     public_key_id: workshop
     tags:
-      owner: "{{ owner }}"
+      owner: fabio
       deployment_id: "{{ deployment_id }}"
   aws:
     defaults: &aws
@@ -120,11 +124,7 @@ regions:
         zone: c
         subnet: subnet-c
 
-##################
-# INFRASTRUCTURE #
-##################
 
-# VM INSTANCES
 deployment:
   - cluster_name: demo
     # group_name: krb5_server
@@ -221,77 +221,7 @@ deployment:
       - <<: *azure_westeurope_default
       - <<: *azure_westeurope_default
 
-############
-# PLATFORM #
-############
 
-# OPENSSL CERTIFICATES
-certificates_organization_name: fabio-org
-certificates_dir: &certs
-  certs
-certificates_usernames: &crdb_client_certs
-  - root
-  - app
-certificates_hosts: "{{ groups['cockroachdb'] }}"
-certificates_loadbalancer: "{{ groups['haproxy'] }}"
 
-#  MIT KDC
-krb5_realm: FABIO.LOCAL
-krb5_kdc_type: MIT KDC
-krb5_kdc_host: "{{ hostvars[(groups[cluster_name] | intersect(groups['krb5_server']))[0]].public_ip }}"
-krb5_kdc_admin_user: "admin/admin@{{ krb5_realm }}"
-krb5_kdc_admin_passwd: Password20@
-krb5_kdc_master_passwd: Password20@
-krb5_enc_types: aes256-cts
-krb5_principals:
-  - name: fabio
-    password: cockroach
 
-# COCKROACHDB
-cockroachdb_deployment: standard
-cockroachdb_secure: yes
-cockroachdb_krb: yes
-cockroachdb_krbsrvname: cockroach
-cockroachdb_certificates_dir: *certs
-cockroachdb_certificates_clients: *crdb_client_certs
-cockroachdb_version: latest
-cockroachdb_join:
-  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].public_ip }}"
-  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].public_ip }}"
-  - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].public_ip }}"
-cockroachdb_sql_port: 26257
-cockroachdb_rpc_port: 26357
-cockroachdb_http_addr_ip: "0.0.0.0"
-cockroachdb_http_addr_port: "8080"
-cockroachdb_cache: '.25'
-cockroachdb_max_sql_memory: '.25'
-cockroachdb_max_offset: 250ms
-# the value for below vars are fetched individually for each node from hostvars
-# these are variables that must be already available in the Ansible inventory
-cockroachdb_locality: "region={{ region | default('') }},zone={{ zone | default('') }}"
-cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
-# cockroachdb_listen_addr: "{{ public_ip | default('') }}"
-# cockroachdb_attrs: "{{ extra_vars.attrs | default('std') }}"
-cockroachdb_cluster_organization: Workshop
-cockroachdb_enterprise_license: crl-0-EO7clJsGGAIiCFdvcmtzaG9w
-cockroachdb_encryption: no
-cockroachdb_encryption_key_old: 
-cockroachdb_encryption_key_new:
-cockroachdb_autofinalize: yes
-cockroachdb_env_vars:
-  - KRB5_KTNAME=/var/lib/cockroach/cockroach.keytab
-  #- GOGC=1000
 
-###############
-# APPLICATION #
-###############
-
-dbusers:
-  - name: fabio
-    password: cockroach
-    is_cert: no
-    is_admin: yes
-  - name: app
-    password: null
-    is_cert: yes
-    is_admin: yes

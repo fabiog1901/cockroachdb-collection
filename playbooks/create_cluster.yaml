@@ -7,13 +7,17 @@
   connection: local
   gather_facts: no
   become: no
+  vars:
+    deployment_id: "fabio-{{ 1000 | random(start=100) }}"
+    deployment: {}
+
   tags:
     - infra
     - cloud_instance
   tasks:
     - name: Ensure presence of instances
       ansible.builtin.shell: |
-        cloud_instance {{ deployment_id }} "{{ state }}" '{{ deployment | to_json }}' '{{ defaults | to_json }}'
+        cloud_instance {{ deployment_id }} present '{{ deployment | to_json }}' '{{ defaults | to_json }}'
       vars:
         defaults:
           instances:
@@ -172,7 +176,8 @@
   gather_facts: yes
   become: no
   vars:
-    certificates_organization_name: fabio-org
+    ca_org_name: fabio-org
+    ca_dir: /var/lib/ca
     certificates_dir: certs
     certificates_usernames:
       - root
@@ -182,87 +187,10 @@
     - platform
     - certificates
   tasks:
-    - name: Check whether ca.key exists
-      stat:
-        path: /var/lib/ca/ca.key
-      register: _stat_result
-
-    - name: create CA crt and key if non existant
-      when: not _stat_result.stat.exists 
-      block:  
-        - name: clean up directory
-          shell: |
-            rm -rf /var/lib/ca/*
-
-        - name: create ca.key
-          ansible.builtin.shell: |
-            openssl genrsa \
-              -out /var/lib/ca/ca.key 2048
-            
-            chmod 400 /var/lib/ca/ca.key
-            
-        - name: Create ca.cnf
-          ansible.builtin.copy:
-            content: |
-              # OpenSSL CA configuration file
-              [ ca ]
-              default_ca = CA_default
-
-              [ CA_default ]
-              default_days = 365
-              database = /tmp/index.txt
-              serial = /tmp/serial.txt
-              default_md = sha256
-              copy_extensions = copy
-              unique_subject = no
-
-              # Used to create the CA certificate.
-              [ req ]
-              prompt=no
-              distinguished_name = distinguished_name
-              x509_extensions = extensions
-
-              [ distinguished_name ]
-              organizationName = {{ certificates_organization_name }}
-              commonName = {{ certificates_organization_name }} CA
-
-              [ extensions ]
-              keyUsage = critical,digitalSignature,nonRepudiation,keyEncipherment,keyCertSign
-              basicConstraints = critical,CA:true,pathlen:1
-
-              # Common policy for nodes and users.
-              [ signing_policy ]
-              organizationName = supplied
-              commonName = optional
-
-              # Used to sign node certificates.
-              [ signing_node_req ]
-              keyUsage = critical,digitalSignature,keyEncipherment
-              extendedKeyUsage = serverAuth,clientAuth
-
-              # Used to sign client certificates.
-              [ signing_client_req ]
-              keyUsage = critical,digitalSignature,keyEncipherment
-              extendedKeyUsage = clientAuth
-            dest: /var/lib/ca/ca.cnf
-
-        - name: create the ca.crt
-          ansible.builtin.shell: |
-            openssl req \
-              -new \
-              -x509 \
-              -config {{ certificates_dir }}/ca/ca.cnf \
-              -key {{ certificates_dir }}/ca/ca.key \
-              -out {{ certificates_dir }}/ca/ca.crt \
-              -days 365 \
-              -batch
-
     - name: Recreate certificate directory
       ansible.builtin.shell: |
-        rm /tmp/index.txt
-        rm /tmp/serial.txt
-        touch /tmp/index.txt
-        echo '01' > /tmp/serial.txt
+        echo > {{ ca_dir }}/index.txt
+        echo '01' > {{ ca_dir }}/serial.txt
 
         rm -rf "{{ certificates_dir }}"
         mkdir "{{ certificates_dir }}"
@@ -279,7 +207,7 @@
           req_extensions = extensions
 
           [ distinguished_name ]
-          organizationName = {{ certificates_organization_name }}
+          organizationName = {{ ca_org_name }}
 
           [ extensions ]
           subjectAltName = critical, @san
@@ -325,9 +253,9 @@
     - name: Sign node csr with CA key and crt
       ansible.builtin.shell: |
         openssl ca \
-          -config  /var/lib/ca/ca.cnf \
-          -keyfile /var/lib/ca/ca.key \
-          -cert    /var/lib/ca/ca.crt \
+          -config  {{ ca_dir }}/ca.cnf \
+          -keyfile {{ ca_dir }}/ca.key \
+          -cert    {{ ca_dir }}/ca.crt \
           -policy signing_policy \
           -extensions signing_node_req \
           -out {{ certificates_dir }}/node.{{ item }}.crt \
@@ -346,7 +274,7 @@
           req_extensions = extensions
 
           [ distinguished_name ]
-          organizationName = {{ certificates_organization_name }}
+          organizationName = {{ ca_org_name }}
           commonName = {{ item }}
 
           [ extensions ]
@@ -375,9 +303,9 @@
     - name: Sign client csr with CA crt and key
       ansible.builtin.shell: |
         openssl ca \
-          -config  /var/lib/ca/ca.cnf \
-          -keyfile /var/lib/ca/ca.key \
-          -cert    /var/lib/ca/ca.crt \
+          -config  {{ ca_dir }}/ca.cnf \
+          -keyfile {{ ca_dir }}/ca.key \
+          -cert    {{ ca_dir }}/ca.crt \
           -policy signing_policy \
           -extensions signing_client_req \
           -out {{ certificates_dir }}/client.{{ item }}.crt \
@@ -542,12 +470,13 @@
   gather_facts: yes
   become: yes
   vars:
-    # cockroachdb_version: latest
+    cockroachdb_version: latest
     cockroachdb_secure: yes
     cockroachdb_certificates_dir: certs
     cockroachdb_certificates_clients:
       - root
     cockroachdb_sql_port: 26257
+    cockroachdb_rpc_port: 26357
     cockroachdb_http_addr_ip: "0.0.0.0"
     cockroachdb_http_addr_port: 8080
     # cockroachdb_store:
@@ -559,15 +488,13 @@
       - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[0]].public_ip }}"
       - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[1]].public_ip }}"
       - "{{ hostvars[( groups[cluster_name] | intersect(groups['cockroachdb']) )[2]].public_ip }}"
-
-    cockroachdb_locality: "cloud={{ cloud | default('') }},region={{ region | default('') }},zone={{ zone | default('') }}"
-    cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
+    cockroachdb_locality: "cloud={{ cloud }},region={{ region }},zone={{ zone }}"
+    cockroachdb_advertise_addr: "{{ public_ip }}"
     cockroachdb_listen_addr: "0.0.0.0"
     cockroachdb_attrs: std
     cockroachdb_cache: ".35"
     cockroachdb_max_sql_memory: ".35"
     cockroachdb_env_vars: []
-    cockroachdb_rpc_port: 26357
     cockroachdb_max_offset: 250ms
   tags:
     - platform
@@ -644,7 +571,7 @@
     - name: Copy CA certificate
       when: cockroachdb_secure
       copy:
-        src: /var/lib/ca/ca.crt
+        src: "{{ ca_dir }}/ca.crt"
         dest: /var/lib/cockroach/certs/ca.crt
 
     - name: Copy node certificate
@@ -817,6 +744,7 @@
         TimeoutStopSec=300
         LimitNOFILE=65000
         Restart=always
+        RestartPreventExitStatus=SIGKILL
         RestartSec=10
         StandardOutput=syslog
         StandardError=syslog
@@ -873,7 +801,7 @@
     haproxy_checkport: '8080'
     haproxy_serverprefix: cockroach
     # CRDB
-    # cockroachdb_version: latest
+    cockroachdb_version: latest
     cockroachdb_repo_url: https://binaries.cockroachdb.com
   tags:
     - platform
@@ -975,7 +903,14 @@
   gather_facts: no
   become: yes
   vars:
-    cockroachdb_advertise_addr: "{{ public_ip | default('') }}"
+    cockroachdb_advertise_addr: "{{ public_ip }}"
+    cockroachdb_cluster_organization: MyOrg
+    cockroachdb_enterprise_license: crl-0-zzzyyyzzz
+    dbusers:
+      - name: cockroach
+        password: cockroach
+        is_cert: no
+        is_admin: yes
   tags:
     - app
   tasks:
@@ -1102,55 +1037,4 @@
         msg: 
           haproxy: "{{ groups['haproxy'] }}"
           cockroachdb: "{{ groups['cockroachdb'] }}"
-          
-- name: COPY CRT+KEY TO APP SERVERS + MISC TASKS
-  hosts: app
-  gather_facts: yes
-  become: yes
-  tasks:
-    - name: install cockroachdb sql client
-      include_role:
-        name: fabiog1901.cockroachdb.cockroachdb
-      vars:
-        cockroachdb_deployment_type: install only
-
-    - name: install pipx
-      shell: |
-        apt update
-        apt install -y python3-pip pipx sysstat
-    
-    - name: install dbworkload
-      become: no
-      shell: |
-        pipx install dbworkload[postgres]
-        pipx ensurepath
-
-    - name: Copy client key
-      ansible.builtin.copy:
-        src: "certs/certs/client.{{ item.name }}.key"
-        dest: "client.{{ item.name }}.key"
-        mode: "0400"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-      when: cockroachdb_secure and item.is_cert
-      loop: "{{ dbusers }}"
-
-    - name: Copy client cert
-      ansible.builtin.copy:
-        src: certs/certs/client.{{ item.name }}.crt
-        dest: "client.{{ item.name }}.crt"
-        mode: "0644"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-      when: cockroachdb_secure and item.is_cert
-      loop: "{{ dbusers }}"
-
-    - name: Copy ca.crt
-      ansible.builtin.copy:
-        src: certs/certs/ca.crt
-        dest: "ca.crt"
-        mode: "0644"
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-      when: cockroachdb_secure
   

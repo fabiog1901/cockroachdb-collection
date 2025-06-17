@@ -1,4 +1,20 @@
 ---
+# #  MIT KDC
+# krb5_realm: FABIO.LOCAL
+# krb5_kdc_type: MIT KDC
+# krb5_kdc_host: "{{ hostvars[(groups[cluster_name] | intersect(groups['krb5_server']))[0]].public_ip }}"
+# krb5_kdc_admin_user: "admin/admin@{{ krb5_realm }}"
+# krb5_kdc_admin_passwd: Password20@
+# krb5_kdc_master_passwd: Password20@
+# krb5_enc_types: aes256-cts
+# krb5_principals:
+#   - name: fabio
+#     password: cockroach
+# cockroachdb_env_vars:
+#   - KRB5_KTNAME=/var/lib/cockroach/cockroach.keytab
+# cockroachdb_krb: yes
+# cockroachdb_krbsrvname: cockroach
+
 - name: INSTALL MIT KDC CLIENT
   hosts: krb5_client
   gather_facts: yes
