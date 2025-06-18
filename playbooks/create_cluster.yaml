@@ -16,7 +16,7 @@
     - cloud_instance
   tasks:
     - name: Ensure presence of instances
-      ansible.builtin.shell: |
+      shell: |
         cloud_instance {{ deployment_id }} present '{{ deployment | to_json }}' '{{ defaults | to_json }}'
       vars:
         defaults:
@@ -106,7 +106,7 @@
       register: instances
 
     - name: Wait for SSH to come up
-      ansible.builtin.wait_for:
+      wait_for:
         host: "{{ item.public_ip }}"
         port: 22
         timeout: 180
@@ -115,7 +115,7 @@
       loop: "{{ instances.stdout | from_json }}"
 
     - name: Build ansible inventory dynamically
-      ansible.builtin.add_host:
+      add_host:
         # id
         name: "{{ item.public_ip }}"
         id: "{{ item.id }}"
@@ -141,7 +141,7 @@
       loop: "{{ instances.stdout | from_json }}"
 
     - name: save cluster list of hosts
-      ansible.builtin.copy:
+      copy:
         content: |
           {% for item in groups %}
           {% if item not in ['all', 'ungrouped'] %}
@@ -155,7 +155,7 @@
         dest: "../inventories/{{ deployment_id }}.ini"
 
     - name: save simplified list of hosts
-      ansible.builtin.copy:
+      copy:
         content: |
           {% for item in groups %}
           {% if item in ['haproxy', 'cockroachdb'] %}
@@ -188,7 +188,7 @@
     - certificates
   tasks:
     - name: Recreate certificate directory
-      ansible.builtin.shell: |
+      shell: |
         rm {{ ca_dir }}/index.txt
         touch {{ ca_dir }}/index.txt
         echo '01' > {{ ca_dir }}/serial.txt
@@ -199,7 +199,7 @@
 
     # Step 2. Create the certificate and key pairs for nodes
     - name: Create the cnf file
-      ansible.builtin.copy:
+      copy:
         content: |
           # OpenSSL node configuration file
           [ req ]
@@ -234,7 +234,7 @@
       loop: "{{ certificates_hosts }}"
 
     - name: Create node key
-      ansible.builtin.shell: |
+      shell: |
         openssl genrsa \
           -out {{ certificates_dir }}/node.{{ item }}.key 2048
 
@@ -242,7 +242,7 @@
       loop: "{{ certificates_hosts }}"
 
     - name: Create node csr
-      ansible.builtin.shell: |
+      shell: |
         openssl req \
           -new \
           -config {{ certificates_dir }}/node.{{ item }}.cnf \
@@ -252,7 +252,7 @@
       loop: "{{ certificates_hosts }}"
       
     - name: Sign node csr with CA key and crt
-      ansible.builtin.shell: |
+      shell: |
         openssl ca \
           -config  {{ ca_dir }}/ca.cnf \
           -keyfile {{ ca_dir }}/ca.key \
@@ -267,7 +267,7 @@
 
     # Step 3. Create the certificate and key pair for the root user
     - name: Create client.cnf for each username
-      ansible.builtin.copy:
+      copy:
         content: |
           [ req ]
           prompt=no
@@ -284,7 +284,7 @@
       loop: "{{ certificates_usernames }}"
 
     - name: Create client key pair for each username
-      ansible.builtin.shell: |
+      shell: |
         openssl genrsa \
           -out {{ certificates_dir }}/client.{{ item }}.key 2048
 
@@ -292,7 +292,7 @@
       loop: "{{ certificates_usernames }}"
 
     - name: Create client csr
-      ansible.builtin.shell: |
+      shell: |
         openssl req \
           -new \
           -config {{ certificates_dir }}/client.{{ item }}.cnf \
@@ -302,7 +302,7 @@
       loop: "{{ certificates_usernames }}"
           
     - name: Sign client csr with CA crt and key
-      ansible.builtin.shell: |
+      shell: |
         openssl ca \
           -config  {{ ca_dir }}/ca.cnf \
           -keyfile {{ ca_dir }}/ca.key \
@@ -375,7 +375,7 @@
         systemctl restart {{ ntp_deamon }} 
 
     - name: Update VM swappiness
-      ansible.builtin.shell: |
+      shell: |
         sed -i '/vm.swappiness*/d' /etc/sysctl.conf
         echo 'vm.swappiness = 0' >> /etc/sysctl.conf
         sysctl -p
@@ -384,11 +384,11 @@
         sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
 
     - name: Set timezone to UTC
-      ansible.builtin.shell: |
+      shell: |
         timedatectl set-timezone UTC
 
     - name: Find attached disks bigger than 100GB
-      ansible.builtin.shell: |
+      shell: |
         lsblk -o NAME,TYPE,SIZE -p -n -b -s | \
           awk '$NF ~ /[1-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/' | \
           grep -v '└─' | \
@@ -400,7 +400,7 @@
 
     - name: Create a ext4 filesystem
       when: _disks.stdout_lines | length > 0
-      ansible.builtin.shell: |
+      shell: |
         mkfs.ext4 {{ item }}
       failed_when: result.rc != 0 and 'will not make a filesystem here!' not in result.stderr
       loop: "{{ _disks.stdout_lines }}"
@@ -469,7 +469,7 @@
     - cockroachdb
   tasks:
     - name: Create the binary-type map
-      ansible.builtin.set_fact:
+      set_fact:
         # map the machine CPU type to the matching filename component
         bin_arch:
           aarch64: arm64
@@ -481,12 +481,12 @@
       register: _stat_result
 
     - name: Download CockroachDB binary
-      ansible.builtin.shell: |
+      shell: |
         wget -q {{ cockroachdb_repo_url }}/cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
       when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not _stat_result.stat.exists
     
     - name: Install CockroachDB binary
-      ansible.builtin.shell: |
+      shell: |
         tar xvf cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
         mv cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}/cockroach /usr/local/bin/cockroach
         chmod 755 /usr/local/bin/cockroach
@@ -496,7 +496,7 @@
     
     - name: install MASTER binary
       when: cockroachdb_version == "master"
-      ansible.builtin.shell: |
+      shell: |
         wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST
         chmod +x cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST
         mv cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
@@ -504,14 +504,14 @@
 
     - name: install custom binary
       when: cockroachdb_version == "custom"
-      ansible.builtin.shell: |
+      shell: |
         wget {{ cockroachdb_custom_url }}
         tar xvf *gz 
         mv cockroach*/cockroach /usr/local/bin/cockroach
         rm -rf cockroach-*
 
     - name: Add the user cockroach
-      ansible.builtin.user:
+      user:
         name: cockroach
         shell: /bin/bash
 
@@ -635,7 +635,7 @@
 
     - name: Copy systemd template cockroachdb.service
       when: ansible_numa_nodes|int <= 1
-      ansible.builtin.copy:
+      copy:
         content: |
           [Unit]
           Description=Cockroach Database cluster node
@@ -683,7 +683,7 @@
 
     - name: create individual systemd unit files for each NUMA node
       when: ansible_numa_nodes|int > 1
-      ansible.builtin.copy:
+      copy:
         content: |
           [Unit]
           Description=Cockroach Database cluster node
@@ -732,7 +732,7 @@
         index_var: numa_idx
 
     - name: Ensure cockroachdb service is restarted
-      ansible.builtin.systemd:
+      systemd:
         name: cockroachdb
         state: restarted
         enabled: yes
@@ -741,7 +741,7 @@
 
     - name: Ensure cockroachdb services are restarted for NUMA nodes
       when: ansible_numa_nodes|int > 1
-      ansible.builtin.systemd:
+      systemd:
         name: cockroachdb-{{ numa_idx|string }}
         state: restarted
         enabled: yes
@@ -789,7 +789,7 @@
         dnf install -y haproxy
 
     - name: Copy haproxy.cfg
-      ansible.builtin.copy:
+      copy:
         content: |
           global
             maxconn 4096
@@ -843,7 +843,7 @@
         systemctl restart haproxy
 
     - name: Create the binary-type map
-      ansible.builtin.set_fact:
+      set_fact:
         # map the machine CPU type to the matching filename component
         bin_arch:
           aarch64: arm64
@@ -855,12 +855,12 @@
       register: out
 
     - name: Download CockroachDB binary
-      ansible.builtin.shell: |
+      shell: |
         wget -q {{ cockroachdb_repo_url }}/cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
       when: not out.stat.exists
     
     - name: Install CockroachDB binary
-      ansible.builtin.shell: |
+      shell: |
         tar xvf cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
         mv cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}/cockroach /usr/local/bin/cockroach
         chmod 755 /usr/local/bin/cockroach
@@ -1002,7 +1002,7 @@
 
     - name: List nodes
       run_once: yes
-      ansible.builtin.debug:
+      debug:
         msg: 
           haproxy: "{{ groups['haproxy'] | default([]) }}"
           cockroachdb: "{{ groups['cockroachdb'] }}"

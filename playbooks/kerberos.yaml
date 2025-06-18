@@ -114,7 +114,7 @@
             state: installed
 
     - name: Set kdc.conf
-      ansible.builtin.copy:
+      copy:
         content: |
           [kdcdefaults]
             kdc_ports = 750,88
@@ -212,7 +212,7 @@
       failed_when: result.rc != 0 and 'Principal or policy already exists while creating' not in result.stderr
 
     - name: Download keytab
-      ansible.builtin.fetch:
+      fetch:
         src: /etc/krb5.keytab
         dest: /tmp/cockroach.keytab
         flat: yes
@@ -225,7 +225,7 @@
   become: yes
   tasks:
     - name: Copy file with owner and permissions
-      ansible.builtin.copy:
+      copy:
         src: /tmp/cockroach.keytab
         dest: /var/lib/cockroach/cockroach.keytab
         mode: "0644"

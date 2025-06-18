@@ -18,7 +18,7 @@
 
     - name: preserve downgrade
       run_once: yes
-      ansible.builtin.shell: |
+      shell: |
         cockroach sql \
           --certs-dir=/var/lib/cockroach/certs \
           --host={{ cockroachdb_advertise_addr }} \
@@ -31,12 +31,12 @@
       register: out
 
     - name: Download CockroachDB binary
-      ansible.builtin.shell: |
+      shell: |
         wget -q {{ cockroachdb_repo_url }}/cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
       when: cockroachdb_version != "master" and cockroachdb_version != "custom" and not out.stat.exists
     
     - name: Install CockroachDB binary
-      ansible.builtin.shell: |
+      shell: |
         tar xvf cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}.tgz
         mv cockroach-{{ cockroachdb_version }}.linux-{{ bin_arch[ansible_architecture] }}/cockroach /usr/local/bin/cockroach
         chmod 755 /usr/local/bin/cockroach
@@ -46,7 +46,7 @@
     
     - name: install MASTER binary
       when: cockroachdb_version == "master"
-      ansible.builtin.shell: |
+      shell: |
         wget https://edge-binaries.cockroachdb.com/cockroach/cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST
         chmod +x cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST
         mv cockroach.linux-gnu-{{ bin_arch[ansible_architecture] }}.LATEST /usr/local/bin/cockroach
@@ -54,7 +54,7 @@
 
     - name: install custom binary
       when: cockroachdb_version == "custom"
-      ansible.builtin.shell: |
+      shell: |
         wget {{ cockroachdb_custom_url }}
         tar xvf *gz 
         mv cockroach*/cockroach /usr/local/bin/cockroach
@@ -70,7 +70,7 @@
         ansible_numa_nodes: "{{ out.stdout }}"
 
     - name: Ensure cockroachdb service is restarted
-      ansible.builtin.systemd:
+      systemd:
         name: cockroachdb
         state: restarted
         enabled: yes
@@ -79,7 +79,7 @@
 
     - name: Ensure cockroachdb services are restarted for NUMA nodes
       when: ansible_numa_nodes|int > 1
-      ansible.builtin.systemd:
+      systemd:
         name: cockroachdb-{{ numa_idx|string }}
         state: restarted
         enabled: yes
@@ -89,6 +89,6 @@
         index_var: numa_idx
 
     - name: Pause between node upgrades
-      ansible.builtin.pause:
+      pause:
         seconds: "{{ cockroachdb_upgrade_delay }}"
       when: cockroachdb_deployment_type == 'upgrade' and ansible_numa_nodes|int <= 1
