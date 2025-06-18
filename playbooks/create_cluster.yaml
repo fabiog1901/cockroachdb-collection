@@ -324,98 +324,64 @@
     - platform
     - config_os
   tasks:
-    - name: Set AWS facts
-      when: cloud == 'aws'
-      set_fact:
-        ntp_server: "server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4"
-
-    - name: Set GCP facts
-      when: cloud == 'gcp'
-      set_fact:
-        ntp_server: server metadata.google.internal iburst
-
-    - when: cloud == 'azure'
-      block:
-        - name: Azure only - disable NTP
-          shell: |
-            curl -O https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
-            DEVICE_ID=`python3 lsvmbus -vv | grep -w "Time Synchronization" -A 1 | awk -F'[{}]' '{print $2}' | tail -n1`
-            echo $DEVICE_ID | sudo tee /sys/bus/vmbus/drivers/hv_utils/unbind
-          register: out
-
-        - name: Azure only - install NTP on debian
-          when: ansible_facts.os_family | lower == 'debian'
-          shell: |
-            apt update
-            apt remove -y chrony
-            apt install -y ntp
-
-        - name: Azure only - install NTP on redhat
-          when: ansible_facts.os_family | lower == 'redhat'
-          shell: |
-            yum remove chrony
-            yum install -y ntp
-
-        - name: Azure only - stop NTP
-          ansible.builtin.systemd:
-            name: ntp
-            state: stopped
-
-        - name: Azure only - update NTP config
-          shell: |
-            sed -i '/^pool.*/'d /etc/ntp.conf
-            sed -i '/^server.*/'d /etc/ntp.conf
-
-            cat - >> /etc/ntp.conf <<EOF
-            server time1.google.com iburst
-            server time2.google.com iburst
-            server time3.google.com iburst
-            server time4.google.com iburst
-            EOF
-
-        - name: Azure only - restart NTP
-          ansible.builtin.systemd:
-            name: ntp
-            state: restarted
-
-    - name: Set debian vars
+    - name: Set debian facts
       when: ansible_facts.os_family | lower == 'debian'
       set_fact:
         ntp_deamon: chrony
         ntp_conf: "/etc/chrony/chrony.conf"
-        ntp_package_name: chrony
 
-    - name: Set redhat vars
+    - name: Set redhat facts
       when: ansible_facts.os_family | lower == 'redhat'
       set_fact:
         ntp_deamon: chronyd
         ntp_conf: "/etc/chrony.conf"
-        ntp_package_name: chrony
 
-    - name: AWS/GCP only - install chrony/ntp
-      when: cloud != 'azure'
-      package:
-        name: "{{ ntp_package_name }}"
-        state: latest
+    - name: Set NTP servers for AWS
+      when: cloud == 'aws'
+      set_fact:
+        ntp_server: "server 169.254.169.123 prefer iburst minpoll 4 maxpoll 4"
 
-    - name: AWS/GCP only - Add the preferred Chrony/NTP server
-      when: cloud != 'azure'
-      lineinfile:
-        path: "{{ ntp_conf }}"
-        line: "{{ ntp_server }}"
+    - name: Set NTP servers for GCP
+      when: cloud == 'gcp'
+      set_fact:
+        ntp_server: server metadata.google.internal iburst
 
-    - name: AWS/GCP only - restart chrony/ntp
-      when: cloud != 'azure'
-      service:
-        name: "{{ ntp_deamon }}"
-        state: restarted
+    - name: Set NTP servers for Azure
+      when: cloud == 'azure'
+      set_fact:
+        ntp_server: |
+          server time1.google.com iburst
+          server time2.google.com iburst
+          server time3.google.com iburst
+          server time4.google.com iburst
+    
+    - name: Azure only - disable refclock
+      when: cloud == 'azure'
+      shell: |
+        curl -O https://raw.githubusercontent.com/torvalds/linux/master/tools/hv/lsvmbus
+        DEVICE_ID=`python3 lsvmbus -vv | grep -w "Time Synchronization" -A 1 | awk -F'[{}]' '{print $2}' | tail -n1`
+        echo $DEVICE_ID | sudo tee /sys/bus/vmbus/drivers/hv_utils/unbind
+
+    - name: add only the NTP servers to the chrony.conf file
+      shell:
+        sed -i '/^pool.*/d' {{ ntp_conf }}
+        sed -i '/^server.*/d' {{ ntp_conf }}
+        sed -i '/^refclock.*/d' {{ ntp_conf }}
+
+        echo "{{ ntp_server }}" >> {{ ntp_conf }}
+
+    - name: restart chrony
+      shell: |
+        systemctl restart {{ ntp_deamon }} 
 
     - name: Update VM swappiness
-      sysctl:
-        name: vm.swappiness
-        value: "0"
-        state: present
-        reload: yes
+      ansible.builtin.shell: |
+        sed -i '/vm.swappiness*/d' /etc/sysctl.conf
+        echo 'vm.swappiness = 0' >> /etc/sysctl.conf
+        sysctl -p
+
+        swapoff -a
+        sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
 
     - name: Set timezone to UTC
       ansible.builtin.shell: |
