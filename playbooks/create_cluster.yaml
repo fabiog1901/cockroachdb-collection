@@ -420,16 +420,15 @@
       block:
         - name: install numactl on debian
           when: ansible_facts.os_family | lower == 'debian'
-          apt:
-            name: numactl
-            state: latest
-            update_cache: yes
-
+          shell: |
+            apt update
+            apt install -y numactl
+            
         - name: install numactl on redhat
           when: ansible_facts.os_family | lower == 'redhat'
-          yum:
-            name: numactl
-            state: latest
+          shell: |
+            dnf update -y
+            dnf install -y numactl
 
 
 - name: DEPLOY COCKROACHDB
@@ -511,30 +510,24 @@
         rm -rf cockroach-*
 
     - name: Add the user cockroach
-      user:
-        name: cockroach
-        shell: /bin/bash
+      shell: |
+        id cockroach || useradd -s /bin/bash cockroach
 
     - name: Create CockroachDB store directory
-      file:
-        path: "{{ item }}"
-        state: directory
-        mode: "0755"
-        recurse: yes
-        owner: cockroach
-        group: cockroach
+      shell: |
+        mkdir -p {{ item }}
+        chmod 755 {{ item }}
+        chown cockroach:cockroach {{ item }}
       loop:
         - /var/lib/cockroach
         - /mnt/cockroach
 
     - name: Create certs directory if it does not exist
       when: cockroachdb_secure
-      file:
-        path: /var/lib/cockroach/certs
-        state: directory
-        owner: cockroach
-        group: cockroach
-        mode: "0755"
+      shell: |
+        mkdir -p /var/lib/cockroach/certs
+        chmod 755 /var/lib/cockroach/certs 
+        chown cockroach:cockroach /var/lib/cockroach/certs
 
     - name: Copy CA certificate
       when: cockroachdb_secure
@@ -586,36 +579,27 @@
 
     - name: Create CockroachDB store directories
       when: _disks.stdout_lines | length > 0
-      file:
-        path: "/mnt/cockroach{{ idx }}"
-        state: directory
-        mode: "0755"
-        recurse: yes
-        owner: cockroach
-        group: cockroach
+      shell: |
+        mkdir -p /mnt/cockroach{{ idx }}
+        chmod 755 /mnt/cockroach{{ idx }}
+        chown cockroach:cockroach /mnt/cockroach{{ idx }}
       loop: "{{ _disks.stdout_lines }}"
       loop_control:
         index_var: idx
 
     - name: Mount the disks
       when: _disks.stdout_lines | length > 0
-      ansible.posix.mount:
-        path: "/mnt/cockroach{{ idx }}"
-        src: "{{ item }}"
-        fstype: ext4
-        state: mounted
+      shell: |
+        mountpoint /mnt/cockroach{{ idx }} || mount {{ item }} /mnt/cockroach{{ idx }}
       loop: "{{ _disks.stdout_lines }}"
       loop_control:
         index_var: idx
 
     - name: Reset permissions on mounted directory /mnt/cockroach
       when: _disks.stdout_lines | length > 0
-      file:
-        path: "/mnt/cockroach{{ idx }}"
-        state: directory
-        mode: "0755"
-        owner: cockroach
-        group: cockroach
+      shell: |
+        chmod 755 /mnt/cockroach{{ idx }}
+        chown cockroach:cockroach /mnt/cockroach{{ idx }}
       loop: "{{ _disks.stdout_lines }}"
       loop_control:
         index_var: idx
@@ -732,20 +716,18 @@
         index_var: numa_idx
 
     - name: Ensure cockroachdb service is restarted
-      systemd:
-        name: cockroachdb
-        state: restarted
-        enabled: yes
-        daemon_reload: yes
+      shell: |
+        systemctl daemon-reload
+        systemctl enable cockroachdb
+        systemctl restart cockroachdb
       when: ansible_numa_nodes|int <= 1
 
     - name: Ensure cockroachdb services are restarted for NUMA nodes
       when: ansible_numa_nodes|int > 1
-      systemd:
-        name: cockroachdb-{{ numa_idx|string }}
-        state: restarted
-        enabled: yes
-        daemon_reload: yes
+      shell: |
+        systemctl daemon-reload
+        systemctl enable cockroachdb-{{ numa_idx|string }}
+        systemctl restart cockroachdb-{{ numa_idx|string }}
       loop: "{{ range(ansible_numa_nodes|int) }}"
       loop_control:
         index_var: numa_idx
