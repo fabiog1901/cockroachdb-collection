@@ -401,11 +401,9 @@
     - name: Create a ext4 filesystem
       when: _disks.stdout_lines | length > 0
       shell: |
-        mkfs.ext4 {{ item }}
-      failed_when: result.rc != 0 and 'will not make a filesystem here!' not in result.stderr
+        blkid {{ item }} -t TYPE="ext4" || mkfs.ext4 {{ item }}
       loop: "{{ _disks.stdout_lines }}"
-      register: result
-
+      
     - name: execute lscpu to find numa nodes count
       shell: |
           lscpu | grep "NUMA node(s):" | cut -d":" -f2 | tr -d '[:space:]'
